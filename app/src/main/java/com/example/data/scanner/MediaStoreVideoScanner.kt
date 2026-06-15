@@ -10,6 +10,7 @@ class MediaStoreVideoScanner(val context: Context) {
     fun scanVideosOnDevice(): List<VideoEntity> {
         val videosList = mutableListOf<VideoEntity>()
         val collection = MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+        val excludedDirs = com.example.data.settings.PlayerSettings.getExcludedDirectories(context)
 
         val projection = arrayOf(
             MediaStore.Video.Media._ID,
@@ -57,6 +58,8 @@ class MediaStoreVideoScanner(val context: Context) {
                         }
                     }
                     val folderNameValue = if (!folder.isNullOrBlank()) folder else "Internal Storage"
+
+                    if (excludedDirs.contains(folderNameValue)) continue
 
                     val contentUri = ContentUris.withAppendedId(collection, id)
 

@@ -37,7 +37,7 @@ class MainActivity : ComponentActivity() {
         val database = AppDatabase.getDatabase(this)
         val repository = VideoRepository(database.videoDao(), database.audioDao())
         val scanner = MediaStoreVideoScanner(this)
-        val deepScanner = com.example.data.scanner.RecursiveDirectoryScanner()
+        val deepScanner = com.example.data.scanner.RecursiveDirectoryScanner(this)
         val audioScanner = com.example.data.scanner.MediaStoreAudioScanner(this)
         
         val viewModel = ViewModelProvider(

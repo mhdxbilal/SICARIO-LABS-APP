@@ -40,8 +40,6 @@ fun PlayerSettingsDialog(
     onSortChanged: ((String, String) -> Unit)? = null,
     groupBySetting: String = "",
     onGroupByChanged: ((String) -> Unit)? = null,
-    aiSummariesEnabled: Boolean = false,
-    onAiSummariesEnabledChanged: ((Boolean) -> Unit)? = null,
     onFolderPickerLaunch: (() -> Unit)? = null,
     onDocumentPickerLaunch: (() -> Unit)? = null,
     onDeepScan: (() -> Unit)? = null,
@@ -81,7 +79,6 @@ fun PlayerSettingsDialog(
     var sortFieldVal by remember { mutableStateOf(sortFieldSetting) }
     var sortOrderVal by remember { mutableStateOf(sortOrderSetting) }
     var groupByVal by remember { mutableStateOf(groupBySetting) }
-    var aiSummariesVal by remember { mutableStateOf(aiSummariesEnabled) }
     var decoderModeVal by remember { mutableStateOf(PlayerSettings.getDecoderMode(context)) }
 
     // Dropdown Dialog state keys
@@ -173,7 +170,7 @@ fun PlayerSettingsDialog(
                     }
                 }
 
-                Divider(color = Color(0xFF222225))
+                HorizontalDivider(color = Color(0xFF222225))
 
                 // Scrollable Setting list
                 Box(
@@ -336,6 +333,17 @@ fun PlayerSettingsDialog(
                                 onCheckedChange = {
                                     saveBrightness = it
                                     PlayerSettings.setSaveBrightness(context, it)
+                                }
+                            )
+
+                            var saveVolume by remember { mutableStateOf(PlayerSettings.getSaveVolume(context)) }
+                            SettingCheckbox(
+                                title = "Save volume level",
+                                description = "Keep volume level consistent when opening media",
+                                checked = saveVolume,
+                                onCheckedChange = {
+                                    saveVolume = it
+                                    PlayerSettings.setSaveVolume(context, it)
                                 }
                             )
 
@@ -535,20 +543,17 @@ fun PlayerSettingsDialog(
                                 },
                                 onClick = { showDelayPickerType = "group_by" }
                             )
-
-                            SettingCheckbox(
-                                title = "Real-time AI Video Summaries",
-                                description = "Identify and cache concise context outlines dynamically using Server-Side Gemini API on video items",
-                                checked = aiSummariesVal,
-                                onCheckedChange = {
-                                    aiSummariesVal = it
-                                    PlayerSettings.setAiSummariesEnabled(context, it)
-                                    onAiSummariesEnabledChanged?.invoke(it)
-                                }
-                            )
                         } else if (activeTab == 4 && onAutomatedScan != null) {
                             // Section 5: Library & Scanning Configurations
                             var autoRescanVal by remember { mutableStateOf(PlayerSettings.getAutoRescan(context)) }
+                            var showExcludeDialog by remember { mutableStateOf(false) }
+
+                            if (showExcludeDialog) {
+                                ExcludedDirectoriesDialog(
+                                    context = context,
+                                    onDismiss = { showExcludeDialog = false }
+                                )
+                            }
 
                             Text(
                                 text = "Media Library",
@@ -566,6 +571,13 @@ fun PlayerSettingsDialog(
                                     onFolderPickerLaunch?.invoke()
                                     onDismiss()
                                 }
+                            )
+
+                            // Excluded Directories
+                            SettingClickable(
+                                title = "Excluded Directories",
+                                value = "Specify folders to ignore during media scanning",
+                                onClick = { showExcludeDialog = true }
                             )
 
                             // Storage Permission Status
@@ -620,7 +632,7 @@ fun PlayerSettingsDialog(
                     }
                 }
 
-                Divider(color = Color(0xFF222225))
+                HorizontalDivider(color = Color(0xFF222225))
 
                 // Creator Signature Footer
                 Column(
@@ -892,6 +904,126 @@ fun PlayerSettingsDialog(
 
 
 @Composable
+fun ExcludedDirectoriesDialog(
+    context: android.content.Context,
+    onDismiss: () -> Unit
+) {
+    var excludedDirs by remember { mutableStateOf(PlayerSettings.getExcludedDirectories(context).toList()) }
+    var newDir by remember { mutableStateOf("") }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0xFF161619),
+            modifier = Modifier.fillMaxWidth().padding(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    text = "Excluded Directories",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Folders listed here will be ignored during media scanning. Type the exact folder name to exclude it (e.g. 'WhatsApp Video').",
+                    color = Color.LightGray,
+                    fontSize = 12.sp
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 200.dp)
+                ) {
+                    if (excludedDirs.isEmpty()) {
+                        Text(
+                            text = "No directories excluded yet",
+                            color = Color.Gray,
+                            fontSize = 14.sp,
+                            modifier = Modifier.padding(vertical = 16.dp)
+                        )
+                    } else {
+                        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                            excludedDirs.forEach { dir ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(text = dir, color = Color.White, fontSize = 14.sp)
+                                    IconButton(
+                                        onClick = {
+                                            PlayerSettings.removeExcludedDirectory(context, dir)
+                                            excludedDirs = PlayerSettings.getExcludedDirectories(context).toList()
+                                        },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Remove",
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider(color = Color(0xFF222225))
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = newDir,
+                        onValueChange = { newDir = it },
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text("Folder name", color = Color.Gray, fontSize = 14.sp) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = Color.DarkGray,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            cursorColor = MaterialTheme.colorScheme.primary
+                        )
+                    )
+                    Button(
+                        onClick = {
+                            if (newDir.isNotBlank()) {
+                                PlayerSettings.addExcludedDirectory(context, newDir.trim())
+                                excludedDirs = PlayerSettings.getExcludedDirectories(context).toList()
+                                newDir = ""
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Add")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text("Close", color = MaterialTheme.colorScheme.primary)
+                }
+            }
+        }
+    }
+}@Composable
 fun SettingCheckbox(
     title: String,
     description: String,

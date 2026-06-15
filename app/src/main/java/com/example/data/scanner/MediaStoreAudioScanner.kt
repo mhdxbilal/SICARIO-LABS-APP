@@ -24,6 +24,7 @@ class MediaStoreAudioScanner(private val context: Context) {
 
         val selection = "${MediaStore.Audio.Media.DURATION} > 1000"
         val sortOrder = "${MediaStore.Audio.Media.DATE_ADDED} DESC"
+        val excludedDirs = com.example.data.settings.PlayerSettings.getExcludedDirectories(context)
 
         try {
             context.contentResolver.query(
@@ -51,6 +52,9 @@ class MediaStoreAudioScanner(private val context: Context) {
                     val duration = cursor.getLong(durationColumn)
                     val size = cursor.getLong(sizeColumn)
                     val dateAdded = cursor.getLong(dateAddedColumn)
+
+                    val folderNameValue = path?.substringBeforeLast("/")?.substringAfterLast("/") ?: "Internal Storage"
+                    if (excludedDirs.contains(folderNameValue)) continue
 
                     val contentUri = ContentUris.withAppendedId(collection, id)
                     val extension = path?.substringAfterLast('.', "mp3")?.lowercase() ?: "mp3"
@@ -80,81 +84,6 @@ class MediaStoreAudioScanner(private val context: Context) {
             e.printStackTrace()
         }
 
-        // Fallback or generic entries if empty to showcase the music player formats
-        if (audioList.isEmpty()) {
-            audioList.addAll(getDemoAudios())
-        }
-
         return audioList
-    }
-
-    private fun getDemoAudios(): List<AudioEntity> {
-        return listOf(
-            AudioEntity(
-                uriString = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
-                title = "Ethereal Echoes (Hi-Res Special)",
-                artist = "Symphonix",
-                album = "Acoustic Landscapes",
-                path = "demo_song_1.flac",
-                duration = 372000L,
-                size = 45201092L,
-                addedDate = System.currentTimeMillis(),
-                format = "flac",
-                sampleRate = 96000,
-                bitDepth = 24
-            ),
-            AudioEntity(
-                uriString = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
-                title = "Chamber Orchestra (Master Quality)",
-                artist = "Vivaldi Ensemble",
-                album = "Classic Redefined",
-                path = "demo_song_2.wav",
-                duration = 423000L,
-                size = 84891102L,
-                addedDate = System.currentTimeMillis() - 86400000L,
-                format = "wav",
-                sampleRate = 192000,
-                bitDepth = 24
-            ),
-            AudioEntity(
-                uriString = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
-                title = "Neon Nights (Lossless Studio)",
-                artist = "Pixelated Wave",
-                album = "Retro Futuristic",
-                path = "demo_song_3.flac",
-                duration = 302000L,
-                size = 31201092L,
-                addedDate = System.currentTimeMillis() - 172800000L,
-                format = "flac",
-                sampleRate = 48000,
-                bitDepth = 16
-            ),
-            AudioEntity(
-                uriString = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
-                title = "Midnight Coffee (High Res PCM)",
-                artist = "Lo-Fi Beats Collective",
-                album = "Café Vibrations",
-                path = "demo_song_4.wav",
-                duration = 245000L,
-                size = 49102432L,
-                addedDate = System.currentTimeMillis() - 259200000L,
-                format = "wav",
-                sampleRate = 96000,
-                bitDepth = 24
-            ),
-            AudioEntity(
-                uriString = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3",
-                title = "Summer Breeze (Standard AAC)",
-                artist = "Sunny Side",
-                album = "Beach Party",
-                path = "demo_song_5.m4a",
-                duration = 189000L,
-                size = 6201092L,
-                addedDate = System.currentTimeMillis() - 345600000L,
-                format = "m4a",
-                sampleRate = 44100,
-                bitDepth = 16
-            )
-        )
     }
 }

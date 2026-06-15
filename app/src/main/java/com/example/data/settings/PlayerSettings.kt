@@ -35,7 +35,6 @@ object PlayerSettings {
     private const val KEY_SORT_FIELD = "sort_field"
     private const val KEY_SORT_ORDER = "sort_order"
     private const val KEY_GROUP_BY = "group_by_preference"
-    private const val KEY_AI_SUMMARIZATION = "enable_ai_summaries"
     private const val KEY_EQUALIZER_ENABLED = "equalizer_enabled"
     private const val KEY_EQUALIZER_BAND_PREFIX = "equalizer_band_"
     private const val KEY_DECODER_MODE = "decoder_mode"
@@ -49,9 +48,6 @@ object PlayerSettings {
 
     fun getGroupBySetting(context: Context): String = getPrefs(context).getString(KEY_GROUP_BY, "none") ?: "none"
     fun setGroupBySetting(context: Context, value: String) = getPrefs(context).edit().putString(KEY_GROUP_BY, value).apply()
-
-    fun getAiSummariesEnabled(context: Context): Boolean = getPrefs(context).getBoolean(KEY_AI_SUMMARIZATION, true)
-    fun setAiSummariesEnabled(context: Context, value: Boolean) = getPrefs(context).edit().putBoolean(KEY_AI_SUMMARIZATION, value).apply()
 
     fun getEqualizerEnabled(context: Context): Boolean = getPrefs(context).getBoolean(KEY_EQUALIZER_ENABLED, false)
     fun setEqualizerEnabled(context: Context, value: Boolean) = getPrefs(context).edit().putBoolean(KEY_EQUALIZER_ENABLED, value).apply()
@@ -99,11 +95,20 @@ object PlayerSettings {
     fun getBrightnessGesture(context: Context): Boolean = getPrefs(context).getBoolean(KEY_BRIGHTNESS_GESTURE, true)
     fun setBrightnessGesture(context: Context, value: Boolean) = getPrefs(context).edit().putBoolean(KEY_BRIGHTNESS_GESTURE, value).apply()
 
-    fun getSaveBrightness(context: Context): Boolean = getPrefs(context).getBoolean(KEY_SAVE_BRIGHTNESS, false)
+    fun getSaveBrightness(context: Context): Boolean = getPrefs(context).getBoolean(KEY_SAVE_BRIGHTNESS, true)
     fun setSaveBrightness(context: Context, value: Boolean) = getPrefs(context).edit().putBoolean(KEY_SAVE_BRIGHTNESS, value).apply()
 
     fun getSavedBrightnessVal(context: Context): Float = getPrefs(context).getFloat(KEY_SAVED_BRIGHTNESS_VAL, 0.5f)
     fun setSavedBrightnessVal(context: Context, value: Float) = getPrefs(context).edit().putFloat(KEY_SAVED_BRIGHTNESS_VAL, value).apply()
+
+    private const val KEY_SAVE_VOLUME = "save_volume"
+    private const val KEY_SAVED_VOLUME_VAL = "saved_volume_val"
+
+    fun getSaveVolume(context: Context): Boolean = getPrefs(context).getBoolean(KEY_SAVE_VOLUME, true)
+    fun setSaveVolume(context: Context, value: Boolean) = getPrefs(context).edit().putBoolean(KEY_SAVE_VOLUME, value).apply()
+
+    fun getSavedVolumeVal(context: Context): Float = getPrefs(context).getFloat(KEY_SAVED_VOLUME_VAL, 0.5f)
+    fun setSavedVolumeVal(context: Context, value: Float) = getPrefs(context).edit().putFloat(KEY_SAVED_VOLUME_VAL, value).apply()
 
     fun getSwipeToSeek(context: Context): Boolean = getPrefs(context).getBoolean(KEY_SWIPE_TO_SEEK, true)
     fun setSwipeToSeek(context: Context, value: Boolean) = getPrefs(context).edit().putBoolean(KEY_SWIPE_TO_SEEK, value).apply()
@@ -113,6 +118,24 @@ object PlayerSettings {
 
     fun getDoubleTapToSeek(context: Context): Boolean = getPrefs(context).getBoolean(KEY_DOUBLE_TAP_TO_SEEK, true)
     fun setDoubleTapToSeek(context: Context, value: Boolean) = getPrefs(context).edit().putBoolean(KEY_DOUBLE_TAP_TO_SEEK, value).apply()
+
+    private const val KEY_EXCLUDED_DIRECTORIES = "excluded_directories"
+
+    fun getExcludedDirectories(context: Context): Set<String> {
+        return getPrefs(context).getStringSet(KEY_EXCLUDED_DIRECTORIES, emptySet()) ?: emptySet()
+    }
+
+    fun addExcludedDirectory(context: Context, folder: String) {
+        val current = getExcludedDirectories(context).toMutableSet()
+        current.add(folder)
+        getPrefs(context).edit().putStringSet(KEY_EXCLUDED_DIRECTORIES, current).apply()
+    }
+
+    fun removeExcludedDirectory(context: Context, folder: String) {
+        val current = getExcludedDirectories(context).toMutableSet()
+        current.remove(folder)
+        getPrefs(context).edit().putStringSet(KEY_EXCLUDED_DIRECTORIES, current).apply()
+    }
 
     // Dashboard display and sorting getters/setters
     fun getViewMode(context: Context): String = getPrefs(context).getString(KEY_VIEW_MODE, "list") ?: "list"

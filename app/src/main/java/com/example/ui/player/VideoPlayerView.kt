@@ -88,6 +88,7 @@ fun VideoPlayerView(
     var volumeGestureEnabled by remember { mutableStateOf(PlayerSettings.getVolumeGesture(context)) }
     var brightnessGestureEnabled by remember { mutableStateOf(PlayerSettings.getBrightnessGesture(context)) }
     var saveBrightnessSetting by remember { mutableStateOf(PlayerSettings.getSaveBrightness(context)) }
+    var saveVolumeSetting by remember { mutableStateOf(PlayerSettings.getSaveVolume(context)) }
     var swipeToSeekEnabled by remember { mutableStateOf(PlayerSettings.getSwipeToSeek(context)) }
     var twoFingerZoomEnabled by remember { mutableStateOf(PlayerSettings.getTwoFingerZoom(context)) }
     var doubleTapToSeekEnabled by remember { mutableStateOf(PlayerSettings.getDoubleTapToSeek(context)) }
@@ -111,6 +112,7 @@ fun VideoPlayerView(
         volumeGestureEnabled = PlayerSettings.getVolumeGesture(context)
         brightnessGestureEnabled = PlayerSettings.getBrightnessGesture(context)
         saveBrightnessSetting = PlayerSettings.getSaveBrightness(context)
+        saveVolumeSetting = PlayerSettings.getSaveVolume(context)
         swipeToSeekEnabled = PlayerSettings.getSwipeToSeek(context)
         twoFingerZoomEnabled = PlayerSettings.getTwoFingerZoom(context)
         doubleTapToSeekEnabled = PlayerSettings.getDoubleTapToSeek(context)
@@ -157,6 +159,14 @@ fun VideoPlayerView(
     // AudioManager for Volume gestures
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
     val maxMusicVolume = remember { audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).toFloat() }
+
+    // Apply saved volume automatically if enabled
+    LaunchedEffect(saveVolumeSetting) {
+        if (saveVolumeSetting) {
+            val savedVol = PlayerSettings.getSavedVolumeVal(context)
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, (savedVol * maxMusicVolume).toInt(), 0)
+        }
+    }
 
     // Screen Lock & Aspect Ratio & Double Tap States
     var isLocked by remember { mutableStateOf(false) }
@@ -210,42 +220,6 @@ fun VideoPlayerView(
     var showSubtitleDialog by remember { mutableStateOf(false) }
     var showSpeedDialog by remember { mutableStateOf(false) }
 
-    // Gemini AI states
-    var showGeminiSheet by remember { mutableStateOf(false) }
-    var geminiSubtitles by remember { mutableStateOf<List<com.example.data.gemini.GeminiSubtitle>>(emptyList()) }
-    var geminiResponseText by remember { mutableStateOf("") }
-    var isGeminiLoading by remember { mutableStateOf(false) }
-    var aiPromptInput by remember { mutableStateOf("") }
-
-    val runGeminiTask: (String, String?, Boolean) -> Unit = { prompt, systemInstruction, parseJson ->
-        coroutineScope.launch {
-            isGeminiLoading = true
-            geminiResponseText = "Thinking with Gemini 3.5 Flash..."
-            try {
-                val result = com.example.data.gemini.GeminiService.generateResponse(
-                    prompt = prompt,
-                    systemInstruction = systemInstruction,
-                    isJsonMode = parseJson
-                )
-                isGeminiLoading = false
-                if (parseJson) {
-                    val parsedSubs = com.example.data.gemini.GeminiSubtitleParser.parseSubtitlesJson(result)
-                    if (parsedSubs.isNotEmpty()) {
-                        geminiSubtitles = parsedSubs
-                        geminiResponseText = "Successfully generated and loaded ${parsedSubs.size} live subtitles!"
-                    } else {
-                        geminiResponseText = "Failed to parse JSON subtitles. Raw response:\n$result"
-                    }
-                } else {
-                    geminiResponseText = result
-                }
-            } catch (e: Exception) {
-                isGeminiLoading = false
-                geminiResponseText = "Error: ${e.message}"
-            }
-        }
-    }
-
     // Gestures overlay transient statuses
     var activeGestureType by remember { mutableStateOf(GestureType.NONE) }
     var isLeftGestureSide by remember { mutableStateOf(false) } // true: Left (Volume), false: Right (Brightness)
@@ -277,15 +251,22 @@ fun VideoPlayerView(
             setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
             setMediaCodecSelector(hardwareSelector)
         }
-        ExoPlayer.Builder(context, renderersFactory).build()
+        com.example.util.MediaCacheManager.buildExoPlayer(context, renderersFactory)
     }
 
     // Auto update progress duration loop
     LaunchedEffect(player, isPlaying) {
         if (isPlaying) {
+            var tickCount = 0
             while (true) {
                 currentPosition = player.currentPosition
                 totalDuration = player.duration
+                if (tickCount % 20 == 0) { // Save every 5 seconds (20 * 250ms)
+                    coroutineScope.launch {
+                        videoRepository.updatePlaybackPosition(video.uriString, currentPosition)
+                    }
+                }
+                tickCount++
                 delay(250)
             }
         }
@@ -544,7 +525,11 @@ fun VideoPlayerView(
                                     val targetVol = (originalVolumeOnDragStart + volumeDelta)
                                         .coerceIn(0f, maxMusicVolume)
                                     audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, targetVol.toInt(), 0)
-                                    gestureProgressValue = targetVol / maxMusicVolume
+                                    val targetVolDecimal = targetVol / maxMusicVolume
+                                    gestureProgressValue = targetVolDecimal
+                                    if (saveVolumeSetting) {
+                                        PlayerSettings.setSavedVolumeVal(context, targetVolDecimal)
+                                    }
                                 } else if (isLeftGestureSide && brightnessGestureEnabled) {
                                     val brightnessDelta = -(accumDeltaY / size.height)
                                     val targetBrightness = (originalBrightnessOnDragStart + brightnessDelta)
@@ -722,208 +707,6 @@ fun VideoPlayerView(
                             Icon(Icons.Default.ArrowBack, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Go Back")
-                        }
-                    }
-                }
-            }
-        }
-
-        // Live timed subtitles display from Gemini Parser
-        val currentSubs = geminiSubtitles
-        val activeGeminiSubtitle by remember(currentSubs) {
-            derivedStateOf {
-                currentSubs.find { currentPosition >= it.startMs && currentPosition <= it.endMs }?.text
-            }
-        }
-
-        if (activeGeminiSubtitle != null && !isMinimized) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 80.dp)
-                    .background(Color.Black.copy(alpha = 0.8f), shape = RoundedCornerShape(8.dp))
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                Text(
-                    text = activeGeminiSubtitle ?: "",
-                    color = Color(0xFFFACC15), // Elegant glowing yellow live captions
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
-
-        // Custom sliding Gemini AI Assistant Side Panel Overlay
-        AnimatedVisibility(
-            visible = showGeminiSheet && !isMinimized,
-            enter = slideInHorizontally { it } + fadeIn(),
-            exit = slideOutHorizontally { it } + fadeOut(),
-            modifier = Modifier
-                .fillMaxHeight()
-                .width(360.dp)
-                .align(Alignment.CenterEnd)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color(0xFF0C0C0E))
-                    .padding(16.dp)
-                    .clickable { /* Block gestures under side panel */ }
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    // Header Row
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.AutoAwesome,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(22.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Sicario Labs AI Assistant",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        IconButton(onClick = { showGeminiSheet = false }) {
-                            Icon(Icons.Default.Close, contentDescription = "Close Panel", tint = Color.LightGray)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Preset quick actions
-                    Text(
-                        text = "QUICK ASSISTANT CHECKS",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.Gray,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                val prompt = "Video filename/title is '${video.title}'. Provide 5 precise expert structural video editing or layout enhancement suggestions for this style of content."
-                                runGeminiTask(prompt, "You are a senior professional video editor and layout consultant. Give direct, bulleted, technical advice.", false)
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF141416)),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1f).height(36.dp),
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            Text("Edit Tips", color = Color.White, style = MaterialTheme.typography.bodySmall)
-                        }
-
-                        Button(
-                            onClick = {
-                                val prompt = "Generate exactly 6 beautifully narrative caption blocks styled with timestamp offsets 'startMs' and 'endMs' in clean JSON format for a video clip titled '${video.title}'. Example output structure:\n[\n  {\"startMs\": 1000, \"endMs\": 4000, \"text\": \"Welcome to this custom video segment!\"},\n  {\"startMs\": 5000, \"endMs\": 9000, \"text\": \"Let's review the coding metrics.\"}\n]"
-                                runGeminiTask(prompt, "You are an automated captioning algorithm. Output ONLY a raw, un-escaped JSON array. No markdown, no preambles, no trailing blocks.", true)
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF141416)),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1f).height(36.dp),
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            Text("AI Subtitles", color = Color.White, style = MaterialTheme.typography.bodySmall)
-                        }
-
-                        Button(
-                            onClick = {
-                                val prompt = "Write a comprehensive film critic content analysis of '${video.title}', including visual aesthetics and thematic tone."
-                                runGeminiTask(prompt, "You are an intellectual cinema critic. Keep your vocabulary beautiful, eye-catching and compact.", false)
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF141416)),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1f).height(36.dp),
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            Text("Content AI", color = Color.White, style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Text result container
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .background(Color(0xFF141416), shape = RoundedCornerShape(8.dp))
-                            .padding(12.dp)
-                    ) {
-                        val scrollState = rememberScrollState()
-                        Column(
-                            modifier = Modifier.verticalScroll(scrollState)
-                        ) {
-                            if (isGeminiLoading) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .align(Alignment.CenterHorizontally),
-                                    color = MaterialTheme.colorScheme.primary,
-                                    strokeWidth = 2.dp
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                            }
-                            Text(
-                                text = if (geminiResponseText.isEmpty()) "Tap a quick assistant tool above, or type in a query to analyze content, translate streams or plan video edits." else geminiResponseText,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (geminiResponseText.startsWith("Error")) Color.Red else Color.White
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Prompt Input Row
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        TextField(
-                            value = aiPromptInput,
-                            onValueChange = { aiPromptInput = it },
-                            placeholder = { Text("Ask Gemini...", color = Color.Gray, style = MaterialTheme.typography.bodySmall) },
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color(0xFF141416),
-                                unfocusedContainerColor = Color(0xFF141416),
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent,
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1f),
-                            singleLine = true
-                        )
-
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        IconButton(
-                            onClick = {
-                                if (aiPromptInput.isNotBlank()) {
-                                    val promptMsg = "Current played video file title is '${video.title}'. User asks: $aiPromptInput"
-                                    runGeminiTask(promptMsg, "You are a professional video AI companion in the Sicario Labs media app.", false)
-                                    aiPromptInput = ""
-                                }
-                            },
-                            modifier = Modifier.background(MaterialTheme.colorScheme.primary, shape = RoundedCornerShape(8.dp))
-                        ) {
-                            Icon(Icons.Default.Send, contentDescription = "Send", tint = Color.Black)
                         }
                     }
                 }
@@ -1140,6 +923,15 @@ fun VideoPlayerView(
                         Icon(Icons.Default.LockOpen, contentDescription = "Lock Controls", tint = Color.White)
                     }
 
+                    // Screen Rotation Button
+                    IconButton(onClick = {
+                        screenOrientationSetting = if (screenOrientationSetting == "landscape") "portrait" else "landscape"
+                        PlayerSettings.setScreenOrientation(context, screenOrientationSetting)
+                        lastInteractionTime = System.currentTimeMillis()
+                    }) {
+                        Icon(Icons.Default.ScreenRotation, contentDescription = "Rotate Screen", tint = Color.White)
+                    }
+
                     // Aspect Ratio Button (Opens Zoom Aspect Choice Dialog)
                     IconButton(onClick = {
                         showVideoZoomDialog = true
@@ -1167,18 +959,6 @@ fun VideoPlayerView(
                         lastInteractionTime = System.currentTimeMillis()
                     }) {
                         Icon(Icons.Default.Settings, contentDescription = "Player Settings", tint = Color.White)
-                    }
-
-                    // Gemini AI Sidebar Toggle Button
-                    IconButton(onClick = {
-                        showGeminiSheet = !showGeminiSheet
-                        lastInteractionTime = System.currentTimeMillis()
-                    }) {
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = "Gemini AI Assistant",
-                            tint = if (showGeminiSheet) MaterialTheme.colorScheme.primary else Color.White
-                        )
                     }
                 }
 

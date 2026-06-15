@@ -106,7 +106,7 @@ fun MediaDashboardScreen(
     var showDashboardSettings by remember { mutableStateOf(false) }
 
     // Audio Player State & Setup
-    val audioPlayer = remember { ExoPlayer.Builder(context).build() }
+    val audioPlayer = remember { com.example.util.MediaCacheManager.buildExoPlayer(context) }
     var audioSessionIdState by remember(audioPlayer) { mutableIntStateOf(audioPlayer.audioSessionId) }
     var eqEnabled by remember { mutableStateOf(PlayerSettings.getEqualizerEnabled(context)) }
 
@@ -208,7 +208,13 @@ fun MediaDashboardScreen(
     var sortFieldSetting by remember { mutableStateOf(PlayerSettings.getSortField(context)) }
     var sortOrderSetting by remember { mutableStateOf(PlayerSettings.getSortOrder(context)) }
     var groupBySetting by remember { mutableStateOf(PlayerSettings.getGroupBySetting(context)) }
-    var aiSummariesEnabled by remember { mutableStateOf(PlayerSettings.getAiSummariesEnabled(context)) }
+
+    LaunchedEffect(displayViewMode) { PlayerSettings.setViewMode(context, displayViewMode) }
+    LaunchedEffect(showOnlyFavoritesSetting) { PlayerSettings.setShowOnlyFavorites(context, showOnlyFavoritesSetting) }
+    LaunchedEffect(playbackActionSetting) { PlayerSettings.setPlaybackAction(context, playbackActionSetting) }
+    LaunchedEffect(sortFieldSetting) { PlayerSettings.setSortField(context, sortFieldSetting) }
+    LaunchedEffect(sortOrderSetting) { PlayerSettings.setSortOrder(context, sortOrderSetting) }
+    LaunchedEffect(groupBySetting) { PlayerSettings.setGroupBySetting(context, groupBySetting) }
     var quickPlayVideo by remember { mutableStateOf<VideoEntity?>(null) }
     var isSearchExpanded by remember { mutableStateOf(false) }
     var isSortMenuExpanded by remember { mutableStateOf(false) }
@@ -465,8 +471,6 @@ fun MediaDashboardScreen(
                         },
                         groupBySetting = groupBySetting,
                         onGroupByChanged = { groupBySetting = it },
-                        aiSummariesEnabled = aiSummariesEnabled,
-                        onAiSummariesEnabledChanged = { aiSummariesEnabled = it },
                         onFolderPickerLaunch = { folderPickerLauncher.launch(null) },
                         onDocumentPickerLaunch = { documentPickerLauncher.launch(arrayOf("video/*")) },
                         onDeepScan = {
@@ -809,6 +813,35 @@ fun MediaDashboardScreen(
                                 }
                             }
 
+                            if (recentVideos.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Continue Watching",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                )
+                                androidx.compose.foundation.lazy.LazyRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    contentPadding = PaddingValues(horizontal = 16.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    items(recentVideos.take(5), key = { it.uriString }) { video ->
+                                        Box(modifier = Modifier.width(160.dp)) {
+                                            VideoItemGrid(
+                                                video = video,
+                                                onClick = { onItemClick(video) },
+                                                onLongClick = { quickPlayVideo = video },
+                                                onFavoriteToggle = { viewModel.toggleFavorite(video) },
+                                                onInfoRequested = { selectedVideoForInfo = video }
+                                            )
+                                        }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(16.dp))
+                            }
+
                             if (groupBySetting != "none" && groupedVideos.isNotEmpty()) {
                                 LazyColumn(
                                     modifier = Modifier
@@ -877,7 +910,6 @@ fun MediaDashboardScreen(
                                                             onLongClick = { quickPlayVideo = video },
                                                             onFavoriteToggle = { viewModel.toggleFavorite(video) },
                                                             onInfoRequested = { selectedVideoForInfo = video },
-                                                            aiSummariesEnabled = aiSummariesEnabled,
                                                             modifier = Modifier.weight(1f)
                                                         )
                                                     }
@@ -893,8 +925,7 @@ fun MediaDashboardScreen(
                                                     onClick = { onItemClick(video) },
                                                     onLongClick = { quickPlayVideo = video },
                                                     onFavoriteToggle = { viewModel.toggleFavorite(video) },
-                                                    onInfoRequested = { selectedVideoForInfo = video },
-                                                    aiSummariesEnabled = aiSummariesEnabled
+                                                    onInfoRequested = { selectedVideoForInfo = video }
                                                 )
                                             }
                                         }
@@ -918,7 +949,6 @@ fun MediaDashboardScreen(
                                                 onLongClick = { quickPlayVideo = video },
                                                 onFavoriteToggle = { viewModel.toggleFavorite(video) },
                                                 onInfoRequested = { selectedVideoForInfo = video },
-                                                aiSummariesEnabled = aiSummariesEnabled,
                                                 modifier = Modifier.animateItem()
                                             )
                                         }
@@ -938,7 +968,6 @@ fun MediaDashboardScreen(
                                                 onLongClick = { quickPlayVideo = video },
                                                 onFavoriteToggle = { viewModel.toggleFavorite(video) },
                                                 onInfoRequested = { selectedVideoForInfo = video },
-                                                aiSummariesEnabled = aiSummariesEnabled,
                                                 modifier = Modifier.animateItem()
                                             )
                                         }
@@ -1254,7 +1283,7 @@ fun MediaDashboardScreen(
                                         Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.Gray)
                                     }
 
-                                    Divider(color = Color(0xFF222225))
+                                    HorizontalDivider(color = Color(0xFF222225))
 
                                     // Auto rescan
                                     Row(
@@ -1935,7 +1964,6 @@ fun VideoItemRow(
     onLongClick: () -> Unit,
     onFavoriteToggle: () -> Unit,
     onInfoRequested: () -> Unit,
-    aiSummariesEnabled: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val extension = remember(video.title) {
@@ -1949,23 +1977,6 @@ fun VideoItemRow(
             }
         } else {
             "MP4"
-        }
-    }
-
-    var summaryState by remember { mutableStateOf("") }
-    var isSummaryLoading by remember { mutableStateOf(false) }
-
-    if (aiSummariesEnabled) {
-        val context = LocalContext.current
-        LaunchedEffect(video.title) {
-            val cachedValue = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                com.example.data.gemini.VideoSummaryCache.getSummary(context, video.title)
-            }
-            if (cachedValue != null) {
-                summaryState = cachedValue
-            } else {
-                summaryState = "🎬 Tap info for AI synopsis"
-            }
         }
     }
 
@@ -2128,25 +2139,6 @@ fun VideoItemRow(
                             )
                         }
                     }
-                    if (aiSummariesEnabled && summaryState.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.AutoAwesome,
-                                contentDescription = "AI Summary",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(11.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = summaryState,
-                                color = Color(0xFFA8B2C4),
-                                fontSize = 10.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
                 }
 
                 // Favorite switch button
@@ -2251,7 +2243,7 @@ fun DetailRow(label: String, value: String) {
         Text(text = label, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
         Spacer(modifier = Modifier.height(2.dp))
         Text(text = value, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 3, overflow = TextOverflow.Ellipsis)
-        Divider(color = Color.White.copy(alpha = 0.05f), modifier = Modifier.padding(top = 8.dp))
+        HorizontalDivider(color = Color.White.copy(alpha = 0.05f), modifier = Modifier.padding(top = 8.dp))
     }
 }
 
@@ -2343,7 +2335,7 @@ fun FolderPlaylistItemRow(
                         .padding(horizontal = 16.dp)
                         .padding(bottom = 16.dp)
                 ) {
-                    Divider(color = Color.White.copy(alpha = 0.05f), modifier = Modifier.padding(bottom = 12.dp))
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.05f), modifier = Modifier.padding(bottom = 12.dp))
                     folder.videos.forEach { video ->
                         Row(
                             modifier = Modifier
@@ -2468,7 +2460,6 @@ fun VideoItemGrid(
     onLongClick: () -> Unit,
     onFavoriteToggle: () -> Unit,
     onInfoRequested: () -> Unit,
-    aiSummariesEnabled: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val extension = remember(video.title) {
@@ -2482,23 +2473,6 @@ fun VideoItemGrid(
             }
         } else {
             "MP4"
-        }
-    }
-
-    var summaryState by remember { mutableStateOf("") }
-    var isSummaryLoading by remember { mutableStateOf(false) }
-
-    if (aiSummariesEnabled) {
-        val context = LocalContext.current
-        LaunchedEffect(video.title) {
-            val cachedValue = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                com.example.data.gemini.VideoSummaryCache.getSummary(context, video.title)
-            }
-            if (cachedValue != null) {
-                summaryState = cachedValue
-            } else {
-                summaryState = "🎬 Tap info for AI synopsis"
-            }
         }
     }
 
@@ -2673,28 +2647,6 @@ fun VideoItemGrid(
                         }
                     }
                 }
-                if (aiSummariesEnabled && summaryState.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(3.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = "AI Summary",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(10.dp)
-                        )
-                        Spacer(modifier = Modifier.width(3.dp))
-                        Text(
-                            text = summaryState,
-                            color = Color(0xFFA8B2C4),
-                            fontSize = 9.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
             }
 
             // Progress bar
@@ -2727,13 +2679,11 @@ fun DisplaySettingsBottomSheet(
     sortField: String,
     sortOrder: String,
     groupBy: String,
-    aiSummariesEnabled: Boolean,
     onViewModeChanged: (String) -> Unit,
     onShowOnlyFavoritesChanged: (Boolean) -> Unit,
     onPlaybackActionChanged: (String) -> Unit,
     onSortChanged: (String, String) -> Unit,
     onGroupByChanged: (String) -> Unit,
-    onAiSummariesEnabledChanged: (Boolean) -> Unit,
     onDismiss: () -> Unit
 ) {
     var dropdownExpanded by remember { mutableStateOf(false) }
@@ -2895,7 +2845,7 @@ fun DisplaySettingsBottomSheet(
             }
 
             Spacer(modifier = Modifier.height(8.dp))
-            Divider(color = Color.White.copy(alpha = 0.08f))
+            HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
             Spacer(modifier = Modifier.height(16.dp))
 
             // Section: Preferences
@@ -2906,47 +2856,6 @@ fun DisplaySettingsBottomSheet(
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(16.dp))
-
-            // Switch: AI thumbnail summaries
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onAiSummariesEnabledChanged(!aiSummariesEnabled) }
-                    .padding(vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                    Icon(
-                        imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column {
-                        Text(
-                            text = "AI Thumbnail summaries",
-                            color = Color.White,
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = "Generate capsular summaries automatically",
-                            color = Color.Gray,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                }
-                Switch(
-                    checked = aiSummariesEnabled,
-                    onCheckedChange = { onAiSummariesEnabledChanged(it) },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = MaterialTheme.colorScheme.primary,
-                        checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                    )
-                )
-            }
 
             // Grouping settings list dropdown
             var groupDropdownExpanded by remember { mutableStateOf(false) }
@@ -3024,7 +2933,7 @@ fun DisplaySettingsBottomSheet(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-            Divider(color = Color.White.copy(alpha = 0.08f))
+            HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
             Spacer(modifier = Modifier.height(16.dp))
 
             // Section 2: Sort by...
@@ -3050,7 +2959,7 @@ fun DisplaySettingsBottomSheet(
                 onSortChanged = onSortChanged
             )
 
-            Divider(color = Color.White.copy(alpha = 0.05f))
+            HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
 
             SortOptionItem(
                 icon = Icons.Default.Description,
@@ -3065,7 +2974,7 @@ fun DisplaySettingsBottomSheet(
                 onSortChanged = onSortChanged
             )
 
-            Divider(color = Color.White.copy(alpha = 0.05f))
+            HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
 
             SortOptionItem(
                 icon = Icons.Default.Timer,
@@ -3080,7 +2989,7 @@ fun DisplaySettingsBottomSheet(
                 onSortChanged = onSortChanged
             )
 
-            Divider(color = Color.White.copy(alpha = 0.05f))
+            HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
 
             SortOptionItem(
                 icon = Icons.Default.CalendarToday,
@@ -3095,7 +3004,7 @@ fun DisplaySettingsBottomSheet(
                 onSortChanged = onSortChanged
             )
 
-            Divider(color = Color.White.copy(alpha = 0.05f))
+            HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
 
             SortOptionItem(
                 icon = Icons.Default.SdStorage,
@@ -3136,7 +3045,7 @@ fun QuickPlayPopupDialog(
 
     // local ExoPlayer instance for quick view with mute enabled by default
     val exoPlayer = remember {
-        androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
+        com.example.util.MediaCacheManager.buildExoPlayer(context).apply {
             repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
             val mediaItem = androidx.media3.common.MediaItem.fromUri(video.uriString)
             setMediaItem(mediaItem)
@@ -3456,33 +3365,6 @@ fun QuickPlayPopupDialog(
                         onClick = {
                             haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                             onFavoriteToggle()
-                        }
-                    )
-
-                    HorizontalDivider(color = Color.White.copy(alpha = 0.08f), thickness = 1.dp)
-
-                    // Item 3: Gemini Instant AI Summary Generator
-                    ShortcutMenuItem(
-                        icon = Icons.Default.AutoAwesome,
-                        title = "Instant AI Insights synopsis",
-                        subtitle = "Synthesize synopsis summary with Gemini AI",
-                        iconColor = Color(0xFF38BDF8),
-                        onClick = {
-                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                            if (!isLoadingSummary) {
-                                isLoadingSummary = true
-                                aiSummaryText = "Synthesizing AI context synopsis..."
-                                coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                                    try {
-                                        val result = com.example.data.gemini.GeminiService.generateVideoAutoSummary(context, video.title)
-                                        aiSummaryText = result
-                                    } catch (e: Exception) {
-                                        aiSummaryText = "Failed to synchronize Gemini video synopsis."
-                                    } finally {
-                                        isLoadingSummary = false
-                                    }
-                                }
-                            }
                         }
                     )
 
