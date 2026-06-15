@@ -34,8 +34,18 @@ class VideoPlayerViewModel(
     private val audioScanner: MediaStoreAudioScanner
 ) : ViewModel() {
 
+    private val context = scanner.context.applicationContext
+
+    private val _hiddenFolders = MutableStateFlow<Set<String>>(
+        com.example.data.settings.PlayerSettings.getHiddenDirectories(scanner.context.applicationContext)
+    )
+    val hiddenFolders: StateFlow<Set<String>> = _hiddenFolders.asStateFlow()
+
     // Lists from Room (Videos)
     val allVideos: StateFlow<List<VideoEntity>> = repository.allVideos
+        .combine(_hiddenFolders) { list, hidden ->
+            list.filter { !hidden.contains(it.folderName) }
+        }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -70,6 +80,9 @@ class VideoPlayerViewModel(
 
     // Lists from Room (Audio / Songs)
     val allAudios: StateFlow<List<AudioEntity>> = repository.allAudios
+        .combine(_hiddenFolders) { list, hidden ->
+            list.filter { !hidden.contains(it.folderName) }
+        }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -457,6 +470,35 @@ class VideoPlayerViewModel(
         val currentIndex = queue.indexOfFirst { it.uriString == current.uriString }
         if (currentIndex != -1 && currentIndex > 0) {
             selectAudio(queue[currentIndex - 1], queue)
+        }
+    }
+
+    fun excludeFolder(folderName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            com.example.data.settings.PlayerSettings.addExcludedDirectory(context, folderName)
+            val videosToDelete = repository.allVideos.first().filter { it.folderName == folderName }
+            val audiosToDelete = repository.allAudios.first().filter { it.folderName == folderName }
+            
+            videosToDelete.forEach { video ->
+                repository.deleteVideo(video.uriString)
+            }
+            audiosToDelete.forEach { audio ->
+                repository.deleteAudio(audio.uriString)
+            }
+        }
+    }
+
+    fun hideFolder(folderName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            com.example.data.settings.PlayerSettings.addHiddenDirectory(context, folderName)
+            _hiddenFolders.value = com.example.data.settings.PlayerSettings.getHiddenDirectories(context)
+        }
+    }
+
+    fun unhideFolder(folderName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            com.example.data.settings.PlayerSettings.removeHiddenDirectory(context, folderName)
+            _hiddenFolders.value = com.example.data.settings.PlayerSettings.getHiddenDirectories(context)
         }
     }
 

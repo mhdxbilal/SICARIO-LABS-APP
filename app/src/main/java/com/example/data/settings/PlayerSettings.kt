@@ -120,6 +120,7 @@ object PlayerSettings {
     fun setDoubleTapToSeek(context: Context, value: Boolean) = getPrefs(context).edit().putBoolean(KEY_DOUBLE_TAP_TO_SEEK, value).apply()
 
     private const val KEY_EXCLUDED_DIRECTORIES = "excluded_directories"
+    private const val KEY_HIDDEN_DIRECTORIES = "hidden_directories"
 
     fun getExcludedDirectories(context: Context): Set<String> {
         return getPrefs(context).getStringSet(KEY_EXCLUDED_DIRECTORIES, emptySet()) ?: emptySet()
@@ -135,6 +136,22 @@ object PlayerSettings {
         val current = getExcludedDirectories(context).toMutableSet()
         current.remove(folder)
         getPrefs(context).edit().putStringSet(KEY_EXCLUDED_DIRECTORIES, current).apply()
+    }
+
+    fun getHiddenDirectories(context: Context): Set<String> {
+        return getPrefs(context).getStringSet(KEY_HIDDEN_DIRECTORIES, emptySet()) ?: emptySet()
+    }
+
+    fun addHiddenDirectory(context: Context, folder: String) {
+        val current = getHiddenDirectories(context).toMutableSet()
+        current.add(folder)
+        getPrefs(context).edit().putStringSet(KEY_HIDDEN_DIRECTORIES, current).apply()
+    }
+
+    fun removeHiddenDirectory(context: Context, folder: String) {
+        val current = getHiddenDirectories(context).toMutableSet()
+        current.remove(folder)
+        getPrefs(context).edit().putStringSet(KEY_HIDDEN_DIRECTORIES, current).apply()
     }
 
     // Dashboard display and sorting getters/setters

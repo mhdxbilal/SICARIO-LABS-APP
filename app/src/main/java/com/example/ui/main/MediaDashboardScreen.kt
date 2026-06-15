@@ -327,6 +327,7 @@ fun MediaDashboardScreen(
     }
 
     var selectedVideoForInfo by remember { mutableStateOf<VideoEntity?>(null) }
+    var selectedFolderForActions by remember { mutableStateOf<Pair<String, List<VideoEntity>>?>(null) }
 
     Scaffold(
         topBar = {
@@ -925,9 +926,16 @@ fun MediaDashboardScreen(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .padding(vertical = 4.dp)
-                                                    .clickable {
-                                                        collapsedGroups[groupKey] = !isCollapsed
-                                                    }
+                                                    .combinedClickable(
+                                                        onClick = {
+                                                            collapsedGroups[groupKey] = !isCollapsed
+                                                        },
+                                                        onLongClick = {
+                                                            if (groupBySetting == "folder") {
+                                                                selectedFolderForActions = Pair(groupKey, groupVideos)
+                                                            }
+                                                        }
+                                                    )
                                             ) {
                                                 Row(
                                                     modifier = Modifier
@@ -1611,6 +1619,30 @@ fun MediaDashboardScreen(
                 viewModel.deleteVideo(it.uriString)
                 selectedVideoForInfo = null
             }
+        )
+    }
+
+    if (selectedFolderForActions != null) {
+        FolderActionsDialog(
+            folderName = selectedFolderForActions!!.first,
+            videosCount = selectedFolderForActions!!.second.size,
+            onPlayAll = {
+                viewModel.playFolderPlaylist(com.example.ui.viewmodel.FolderPlaylist(selectedFolderForActions!!.first, selectedFolderForActions!!.second))
+                selectedFolderForActions = null
+            },
+            onQueueAll = {
+                viewModel.queueFolderPlaylist(com.example.ui.viewmodel.FolderPlaylist(selectedFolderForActions!!.first, selectedFolderForActions!!.second))
+                selectedFolderForActions = null
+            },
+            onExclude = {
+                viewModel.excludeFolder(selectedFolderForActions!!.first)
+                selectedFolderForActions = null
+            },
+            onHide = {
+                viewModel.hideFolder(selectedFolderForActions!!.first)
+                selectedFolderForActions = null
+            },
+            onDismiss = { selectedFolderForActions = null }
         )
     }
 
@@ -2515,6 +2547,132 @@ fun EmptyFoldersStateLayout(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Select Folder Playlist")
             }
+        }
+    }
+}
+
+@Composable
+fun FolderActionsDialog(
+    folderName: String,
+    videosCount: Int,
+    onPlayAll: () -> Unit,
+    onQueueAll: () -> Unit,
+    onExclude: () -> Unit,
+    onHide: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0xFF161619),
+            modifier = Modifier.fillMaxWidth().padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Title
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Folder,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = folderName,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "$videosCount media items",
+                            color = Color.Gray,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = Color(0xFF222225))
+
+                // Options
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    FolderActionItem(
+                        icon = Icons.Default.PlayArrow,
+                        title = "Play All Videos",
+                        description = "Start playback of all videos in this folder consecutively",
+                        color = Color.White,
+                        onClick = onPlayAll
+                    )
+
+                    FolderActionItem(
+                        icon = Icons.Default.PlaylistAdd,
+                        title = "Queue All Videos",
+                        description = "Add all videos in this folder to the end of the queue",
+                        color = Color.White,
+                        onClick = onQueueAll
+                    )
+
+                    FolderActionItem(
+                        icon = Icons.Default.VisibilityOff,
+                        title = "Hide Folder from Library",
+                        description = "Temporarily hide this folder's items from the dashboards",
+                        color = Color.White,
+                        onClick = onHide
+                    )
+
+                    FolderActionItem(
+                        icon = Icons.Default.DeleteForever,
+                        title = "Exclude Folder from Media Library",
+                        description = "Add to excluded scanning directories and delete from DB",
+                        color = Color(0xFFFF5252),
+                        onClick = onExclude
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Dismiss", color = Color.Gray)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun FolderActionItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    description: String,
+    color: Color,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp, horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (color == Color.White) MaterialTheme.colorScheme.primary else color,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title, color = color, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(text = description, color = Color.Gray, fontSize = 11.sp)
         }
     }
 }

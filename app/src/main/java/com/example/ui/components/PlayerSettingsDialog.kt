@@ -547,11 +547,19 @@ fun PlayerSettingsDialog(
                             // Section 5: Library & Scanning Configurations
                             var autoRescanVal by remember { mutableStateOf(PlayerSettings.getAutoRescan(context)) }
                             var showExcludeDialog by remember { mutableStateOf(false) }
+                            var showHiddenDialog by remember { mutableStateOf(false) }
 
                             if (showExcludeDialog) {
                                 ExcludedDirectoriesDialog(
                                     context = context,
                                     onDismiss = { showExcludeDialog = false }
+                                )
+                            }
+
+                            if (showHiddenDialog) {
+                                HiddenDirectoriesDialog(
+                                    context = context,
+                                    onDismiss = { showHiddenDialog = false }
                                 )
                             }
 
@@ -578,6 +586,13 @@ fun PlayerSettingsDialog(
                                 title = "Excluded Directories",
                                 value = "Specify folders to ignore during media scanning",
                                 onClick = { showExcludeDialog = true }
+                            )
+
+                            // Hidden Directories
+                            SettingClickable(
+                                title = "Hidden Directories",
+                                value = "Manage folders that are hidden on the UI dashboards",
+                                onClick = { showHiddenDialog = true }
                             )
 
                             // Storage Permission Status
@@ -1023,7 +1038,131 @@ fun ExcludedDirectoriesDialog(
             }
         }
     }
-}@Composable
+}
+
+@Composable
+fun HiddenDirectoriesDialog(
+    context: android.content.Context,
+    onDismiss: () -> Unit
+) {
+    var hiddenDirs by remember { mutableStateOf(PlayerSettings.getHiddenDirectories(context).toList()) }
+    var newDir by remember { mutableStateOf("") }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0xFF161619),
+            modifier = Modifier.fillMaxWidth().padding(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    text = "Hidden Directories",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Folders listed here will be hidden from all dashboards in the app. Type the exact folder name to hide it (e.g. 'Downloads').",
+                    color = Color.LightGray,
+                    fontSize = 12.sp
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 200.dp)
+                ) {
+                    if (hiddenDirs.isEmpty()) {
+                        Text(
+                            text = "No directories hidden yet",
+                            color = Color.Gray,
+                            fontSize = 14.sp,
+                            modifier = Modifier.padding(vertical = 16.dp)
+                        )
+                    } else {
+                        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                            hiddenDirs.forEach { dir ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(text = dir, color = Color.White, fontSize = 14.sp)
+                                    IconButton(
+                                        onClick = {
+                                            PlayerSettings.removeHiddenDirectory(context, dir)
+                                            hiddenDirs = PlayerSettings.getHiddenDirectories(context).toList()
+                                        },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Remove",
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider(color = Color(0xFF222225))
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = newDir,
+                        onValueChange = { newDir = it },
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text("Folder name", color = Color.Gray, fontSize = 14.sp) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = Color.DarkGray,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            cursorColor = MaterialTheme.colorScheme.primary
+                        )
+                    )
+                    Button(
+                        onClick = {
+                            if (newDir.isNotBlank()) {
+                                PlayerSettings.addHiddenDirectory(context, newDir.trim())
+                                hiddenDirs = PlayerSettings.getHiddenDirectories(context).toList()
+                                newDir = ""
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Add")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text("Close", color = MaterialTheme.colorScheme.primary)
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun SettingCheckbox(
     title: String,
     description: String,
