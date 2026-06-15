@@ -218,6 +218,9 @@ fun MediaDashboardScreen(
     var quickPlayVideo by remember { mutableStateOf<VideoEntity?>(null) }
     var isSearchExpanded by remember { mutableStateOf(false) }
     var isSortMenuExpanded by remember { mutableStateOf(false) }
+    
+    // Keep track of collapsed states of groups (e.g. key = groupKey, value = true if collapsed)
+    val collapsedGroups = remember { mutableStateMapOf<String, Boolean>() }
 
     // Equalizer State Variables (More Tab)
     var eq60Hz by remember { mutableFloatStateOf(0f) }
@@ -850,7 +853,71 @@ fun MediaDashboardScreen(
                                     contentPadding = PaddingValues(top = 12.dp, bottom = 80.dp),
                                     verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
+                                    // Global controls to Expand / Collapse All folders
+                                    item(key = "group_controls") {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 4.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "Grouped ${if (groupBySetting == "folder") "by Folder" else "by Alphabet"}",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = Color.Gray,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                TextButton(
+                                                    onClick = {
+                                                        groupedVideos.keys.forEach { key ->
+                                                            collapsedGroups[key] = false
+                                                        }
+                                                    },
+                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.ExpandMore,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(16.dp).padding(end = 4.dp),
+                                                        tint = MaterialTheme.colorScheme.primary
+                                                     )
+                                                     Text(
+                                                         text = "Expand All",
+                                                         fontSize = 11.sp,
+                                                         color = MaterialTheme.colorScheme.primary,
+                                                         fontWeight = FontWeight.Bold
+                                                     )
+                                                 }
+                                                 TextButton(
+                                                     onClick = {
+                                                         groupedVideos.keys.forEach { key ->
+                                                             collapsedGroups[key] = true
+                                                         }
+                                                     },
+                                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                                 ) {
+                                                     Icon(
+                                                         imageVector = Icons.Default.ExpandLess,
+                                                         contentDescription = null,
+                                                         modifier = Modifier.size(16.dp).padding(end = 4.dp),
+                                                         tint = Color.LightGray
+                                                     )
+                                                     Text(
+                                                         text = "Collapse All",
+                                                         fontSize = 11.sp,
+                                                         color = Color.LightGray,
+                                                         fontWeight = FontWeight.Bold
+                                                     )
+                                                 }
+                                             }
+                                         }
+                                     }
+
                                     groupedVideos.forEach { (groupKey, groupVideos) ->
+                                        val isCollapsed = collapsedGroups[groupKey] ?: false
+                                        
                                         item(key = "header_${groupKey}") {
                                             Card(
                                                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E22)),
@@ -858,6 +925,9 @@ fun MediaDashboardScreen(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .padding(vertical = 4.dp)
+                                                    .clickable {
+                                                        collapsedGroups[groupKey] = !isCollapsed
+                                                    }
                                             ) {
                                                 Row(
                                                     modifier = Modifier
@@ -881,7 +951,7 @@ fun MediaDashboardScreen(
                                                             style = MaterialTheme.typography.bodyMedium
                                                         )
                                                     }
-                                                    Surface(
+                                                    Row(verticalAlignment = Alignment.CenterVertically) { Surface(
                                                         color = Color.Black,
                                                         shape = RoundedCornerShape(10.dp)
                                                     ) {
@@ -892,11 +962,20 @@ fun MediaDashboardScreen(
                                                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                                         )
                                                     }
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Icon(
+                                                        imageVector = if (isCollapsed) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
+                                                        contentDescription = if (isCollapsed) "Expand group" else "Collapse group",
+                                                        tint = Color.LightGray,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                    }
                                                 }
                                             }
                                         }
 
-                                        if (displayViewMode == "grid") {
+                                        if (!isCollapsed) {
+                                            if (displayViewMode == "grid") {
                                             val chunked = groupVideos.chunked(2)
                                             items(chunked) { chunk ->
                                                 Row(
@@ -928,6 +1007,7 @@ fun MediaDashboardScreen(
                                                     onInfoRequested = { selectedVideoForInfo = video }
                                                 )
                                             }
+                                        }
                                         }
                                     }
                                 }
