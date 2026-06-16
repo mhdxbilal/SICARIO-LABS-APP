@@ -75,8 +75,9 @@ class DownloadWorker(
             val tempFilePrefix = "ytdl_" + System.currentTimeMillis()
             val format = inputData.getString(KEY_FORMAT)
             
-            // Build ProcessBuilder command
+            // Build ProcessBuilder command using /system/bin/sh for modern Android compatibility
             val command = mutableListOf<String>()
+            command.add("/system/bin/sh")
             command.add(ytDlpFile.absolutePath)
             if (!format.isNullOrEmpty()) {
                 command.add("-f")

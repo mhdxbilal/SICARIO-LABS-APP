@@ -44,7 +44,17 @@ echo "⚡ Total registered code bindings: $UNUSEDS imports detected."
 
 # 5. Compile and analyze artifact size
 echo "📦 Injecting optimization parameters and building APK..."
-gradle :app:assembleDebug --no-daemon
+if command -v gradle >/dev/null 2>&1; then
+    echo "🚀 Using globally installed Gradle command..."
+    gradle :app:assembleDebug --no-daemon
+elif [ -f "./gradlew" ]; then
+    echo "🚀 Using local Gradle Wrapper (gradlew)..."
+    chmod +x ./gradlew
+    ./gradlew :app:assembleDebug --no-daemon
+else
+    echo "❌ [ERROR] Neither 'gradle' nor './gradlew' found in the project root directory!"
+    exit 1
+fi
 
 # 6. Measure generated binary metrics
 APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
@@ -53,6 +63,14 @@ if [ -f "$APK_PATH" ]; then
     APK_SIZE_MB=$(echo "scale=2; $APK_SIZE/1048576" | bc 2>/dev/null || awk "BEGIN {print $APK_SIZE/1048576}")
     echo "📊 Compiled APK Target: $APK_PATH"
     echo "📊 Measured APK Size: $APK_SIZE_MB MB"
+    
+    echo "📊 APK Internal Structure Composition (Top 12 largest files/dirs):"
+    if command -v unzip >/dev/null 2>&1; then
+        unzip -l "$APK_PATH" | sort -n -k 1 | tail -n 15
+    else
+        echo "⚠️ 'unzip' utility is not installed. Skipping internal ZIP composition analysis."
+    fi
+    echo ""
     
     # Assert threshold using the customized SIZE_LIMIT
     if (( $(echo "$APK_SIZE_MB > $SIZE_LIMIT" | bc 2>/dev/null || awk "BEGIN {if ($APK_SIZE_MB > $SIZE_LIMIT) print 1; else print 0}") )); then

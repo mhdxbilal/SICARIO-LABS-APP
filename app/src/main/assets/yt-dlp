@@ -1,7 +1,8 @@
-#!/bin/sh
+#!/system/bin/sh
 # Dummy yt-dlp binary representing the compiled tool.
 # Will output mock progress lines to simulate real process stdout tracking.
-echo "[download] Destination: /mock/video.mp4"
+
+echo "[download] Destination: MockDownloadedVideo.mp4"
 echo "[download]   0.0% of 100.00MiB at Unknown speed ETA Unknown"
 sleep 1
 echo "[download]  10.0% of 100.00MiB at 1.00MiB/s ETA 01:30"
@@ -12,4 +13,28 @@ echo "[download]  70.2% of 100.00MiB at 3.00MiB/s ETA 00:10"
 sleep 1
 echo "[download] 100.0% of 100.00MiB at 3.20MiB/s ETA 00:00"
 echo "[download] Download complete"
+
+# Parse arguments to find the -o parameter
+OUT_PATH=""
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -o)
+            OUT_PATH="$2"
+            shift 2
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+
+if [ -n "$OUT_PATH" ]; then
+    # Replace %(title)s and %(ext)s with standard values
+    RESOLVED_PATH=$(echo "$OUT_PATH" | sed 's/%(title)s/MockDownloadedVideo/g' | sed 's/%(ext)s/mp4/g')
+    mkdir -p "$(dirname "$RESOLVED_PATH")"
+    # Write some dummy bytes so file size > 0 to pass length checks
+    echo "MOCK VIDEO DATA" > "$RESOLVED_PATH"
+    dd if=/dev/zero of="$RESOLVED_PATH" bs=1024 count=1024 2>/dev/null
+fi
+
 exit 0

@@ -119,6 +119,7 @@ class DownloadManager(private val context: Context) {
 
             // Build parameters conforming exactly to requested output template
             val command = mutableListOf<String>()
+            command.add("/system/bin/sh")
             command.add(ytDlpFile.absolutePath)
             if (quality.trim().isNotEmpty() && quality != "best") {
                 command.add("-f")

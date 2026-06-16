@@ -87,7 +87,7 @@ dependencies {
   implementation(libs.androidx.compose.ui.tooling.preview)
   implementation(libs.androidx.core.ktx)
   
-  implementation("com.google.mediapipe:tasks-vision:0.20230731")
+  // implementation("com.google.mediapipe:tasks-vision:0.20230731")
   // org.tensorflow namespace collision fix:
   // implementation("org.tensorflow:tensorflow-lite:2.14.0")
   // implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
