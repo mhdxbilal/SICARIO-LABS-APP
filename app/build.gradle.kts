@@ -1,128 +1,96 @@
 plugins {
-  alias(libs.plugins.android.application)
-  alias(libs.plugins.kotlin.compose)
-  alias(libs.plugins.google.devtools.ksp)
-  alias(libs.plugins.roborazzi)
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.google.devtools.ksp)
+    alias(libs.plugins.roborazzi)
 }
 
 android {
-  namespace = "com.siciario.labs.mediaplayer"
-  compileSdk { version = release(36) { minorApiLevel = 1 } }
+    namespace = "com.sicario.labs.mediaplayer"
+    compileSdk = 35
 
-  defaultConfig {
-    applicationId = "com.siciario.labs.mediaplayer"
-    minSdk = 24
-    targetSdk = 36
-    versionCode = 2
-    versionName = "2.0.0"
-    
-    ndk {
-      abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+    defaultConfig {
+        applicationId = "com.sicario.labs.mediaplayer"
+        minSdk = 24
+        targetSdk = 35
+        versionCode = 2
+        versionName = "2.0.0"
+
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Offline-first feature flags
+        buildConfigField("Boolean", "OFFLINE_MODE_ONLY", "true")
+        buildConfigField("Boolean", "ENABLE_LOCAL_CACHE", "true")
+        buildConfigField("Boolean", "ENABLE_ANALYTICS", "false")
     }
 
-    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    
-    // Offline-first feature flags
-    buildConfigField("Boolean", "OFFLINE_MODE_ONLY", "true")
-    buildConfigField("Boolean", "ENABLE_LOCAL_CACHE", "true")
-    buildConfigField("Boolean", "ENABLE_ANALYTICS", "false")
-  }
+    signingConfigs {
+        create("release") {
+            val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
+            storeFile = file(keystorePath)
+            storePassword = System.getenv("STORE_PASSWORD")
+            keyAlias = "upload"
+            keyPassword = System.getenv("KEY_PASSWORD")
+        }
+        create("debugConfig") {
+            val localKeystore = rootProject.file("debug.keystore")
+            if (localKeystore.exists()) {
+                storeFile = localKeystore
+            } else {
+                storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
+            }
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
 
-  signingConfigs {
-    create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+    buildTypes {
+        release {
+            isCrunchPngs = false
+            isMinifyEnabled = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("release")
+            buildConfigField("Boolean", "OFFLINE_MODE_ONLY", "true")
+        }
+        debug {
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("debugConfig")
+            buildConfigField("Boolean", "OFFLINE_MODE_ONLY", "true")
+        }
     }
-    create("debugConfig") {
-      val localKeystore = rootProject.file("debug.keystore")
-      if (localKeystore.exists()) {
-        storeFile = localKeystore
-      } else {
-        storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
-      }
-      storePassword = "android"
-      keyAlias = "androiddebugkey"
-      keyPassword = "android"
-    }
-  }
 
-  buildTypes {
-    release {
-      isCrunchPngs = false
-      isMinifyEnabled = true
-      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("release")
-      buildConfigField("Boolean", "OFFLINE_MODE_ONLY", "true")
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
     }
-    debug {
-      isMinifyEnabled = false
-      signingConfig = signingConfigs.getByName("debugConfig")
-      buildConfigField("Boolean", "OFFLINE_MODE_ONLY", "true")
+
+    buildFeatures {
+        compose = true
+        buildConfig = true
     }
-  }
-  
-  compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
-  }
-  
-  buildFeatures {
-    compose = true
-    buildConfig = true
-  }
-  
-  testOptions { 
-    unitTests { 
-      isIncludeAndroidResources = true 
-    } 
-  }
+
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 dependencies {
-  // Core Android
-  implementation(libs.androidx.core.ktx)
-  implementation(libs.androidx.activity.compose)
-  
-  // Jetpack Compose
-  implementation(platform(libs.androidx.compose.bom))
-  implementation(libs.androidx.compose.ui)
-  implementation(libs.androidx.compose.ui.graphics)
-  implementation(libs.androidx.compose.ui.tooling.preview
-    
-  // Add this to resolve the XML attribute linking error:
-  implementation("com.google.android.material:material:1.12.0")
+    // Core Android
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.activity.compose)
 
-  implementation(libs.androidx.compose.material3)
-  implementation(libs.androidx.compose.material.icons.core)
-  implementation(libs.androidx.compose.material.icons.extended)
-  
-  // Media3 (ExoPlayer) - Core Media Playback (Offline)
-  implementation(libs.androidx.media3.exoplayer)
-  implementation(libs.androidx.media3.ui)
-  implementation(libs.androidx.media3.common)
-  implementation(libs.androidx.media3.session)
-  
-  // Lifecycle & ViewModel
-  implementation(libs.androidx.lifecycle.runtime.ktx)
-  implementation(libs.androidx.lifecycle.runtime.compose)
-  implementation(libs.androidx.lifecycle.viewmodel.compose)
-  
-  // Room Database (Offline Storage)
-  implementation(libs.androidx.room.runtime)
-  implementation(libs.androidx.room.ktx)
-  "ksp"(libs.androidx.room.compiler)
-  
-  // Background Work
-  implementation(libs.androidx.work.runtime.ktx)
-  
-  // Networking (for optional offline cache sync)
-  implementation(libs.retrofit)
-  implementation(libs.converter.moshi)
-  implementation(libs.okhttp)
-  implementation(libs.logging.interceptor)
+    // Jetpack Compose
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.ui.graphics)
+    implementation(libs.
   
   // JSON
   implementation(libs.moshi.kotlin)
