@@ -1,21 +1,68 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# ProGuard Rules for SICARIO LABS Media Player
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# General rules
+-verbose
+-dontusemixedcaseclassnames
+-dontskipnonpubliclibraryclasses
+-dontskipnonpubliclibraryclassmembers
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Keep source file names
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Preserve annotations
+-keepattributes *Annotation*,InnerClasses
+
+# Keep Kotlin metadata
+-keepattributes RuntimeVisibleAnnotations
+-keepattributes RuntimeInvisibleAnnotations
+-keepattributes EnclosingMethod
+
+# Kotlin Coroutines
+-keepclassmembers class kotlinx.coroutines.** {
+    volatile <fields>;
+}
+
+# Room Database
+-keepclassmembers class * extends androidx.room.RoomDatabase { *; }
+-keepclassmembers class com.siciario.labs.** { *; }
+
+# Moshi JSON
+-keepclassmembers class ** {
+    @com.squareup.moshi.Json <fields>;
+}
+-keepclasseswithmembers class ** {
+    @com.squareup.moshi.Json <methods>;
+}
+
+# MediaPipe
+-keep class com.google.mediapipe.** { *; }
+
+# ExoPlayer/Media3
+-keep class androidx.media3.** { *; }
+-keep class com.google.android.exoplayer2.** { *; }
+
+# Retrofit
+-keepattributes Signature
+-keepattributes Exceptions
+-keep interface retrofit2.** { *; }
+-keep class retrofit2.** { *; }
+
+# OkHttp
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-keep class okhttp3.** { *; }
+
+# Coil Image Loading
+-keep class coil.** { *; }
+
+# Application classes
+-keep class com.siciario.labs.** { *; }
+-keepclassmembers class com.siciario.labs.** { *; }
+
+# Remove logging in release builds
+-assumenosideeffects class android.util.Log {
+    public static *** d(...);
+    public static *** v(...);
+    public static *** i(...);
+}

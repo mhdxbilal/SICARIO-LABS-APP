@@ -86,7 +86,7 @@ SICARIO-LABS-APP/
 ├── app/
 │   ├── src/
 │   │   ├── main/
-│   │   │   ├── java/com/example/
+│   │   │   ├── java/com/siciario/labs/
 │   │   │   │   ├── ui/                 # Jetpack Compose UI screens
 │   │   │   │   ├── viewmodel/          # MVVM ViewModels
 │   │   │   │   ├── repository/         # Data layer
@@ -242,7 +242,7 @@ For issues, questions, or feature requests:
 - Check existing issues first
 - Provide detailed reproduction steps
 
-## 🎯 Roadmap
+## 🗺️ Roadmap
 
 - [ ] Gapless playback
 - [ ] Advanced equalizer
