@@ -19,10 +19,8 @@
         android:name="android.hardware.video.playback"
         android:required="false" />
 
-    <application
+        <application
         android:allowBackup="true"
-        android:dataExtractionRules="@xml/backup_descriptor"
-        android:fullBackupContent="@xml/backup_descriptor"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
