@@ -8,6 +8,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.CircleShape
+import com.sicario.labs.mediaplayer.util.StorageUtils
 
 /**
  * Media Player Controls - Reusable playback control components
