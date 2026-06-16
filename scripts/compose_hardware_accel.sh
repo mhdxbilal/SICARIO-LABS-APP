@@ -20,7 +20,7 @@ fi
 
 # 2. Verify Compose runtime dependencies
 echo "📦 Verifying Jetpack Compose runtime & compiler versions..."
-gradle dependencyInsight --dependency androidx.compose.runtime:runtime --configuration debugRuntimeClasspath --no-daemon
+gradle :app:dependencyInsight --dependency androidx.compose.runtime:runtime --configuration debugRuntimeClasspath --no-daemon
 
 # 3. Check for heavy layout compositions
 echo "🔬 Inspecting Composable definitions for key patterns..."

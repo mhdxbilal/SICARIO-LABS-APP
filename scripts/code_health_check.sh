@@ -14,7 +14,7 @@ find app/src -type f | sed 's/.*\.//' | sort | uniq -c
 
 # 2. Compile tests or verify Gradle compilation is clean
 echo "🔨 Running dry-run validation of production build..."
-gradle compileDebugKotlin --no-daemon
+gradle :app:compileDebugKotlin --no-daemon
 
 # 3. Code formatting compliance detection
 echo "✨ Analyzing manifest declarations..."
@@ -27,6 +27,6 @@ fi
 
 # 4. Check for unresolved dependencies or duplicates
 echo "📦 Analyzing project build dependencies..."
-gradle dependencies --configuration debugRuntimeClasspath --no-daemon | head -n 50
+gradle :app:dependencies --configuration debugRuntimeClasspath --no-daemon | head -n 50
 
 echo "✅ Code Health Audit Completed Successfully with Clean Status!"

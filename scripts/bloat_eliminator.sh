@@ -19,7 +19,7 @@ echo "⚡ Total registered code bindings: $UNUSEDS imports detected."
 
 # 3. Compile and analyze artifact size
 echo "📦 Injecting optimization parameters and building APK..."
-gradle assembleDebug --no-daemon
+gradle :app:assembleDebug --no-daemon
 
 # 4. Measure generated binary metrics
 APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
