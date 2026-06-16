@@ -150,13 +150,9 @@ dependencies {
     testImplementation(libs.androidx.core)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.roborazzi)
-    testImplementation(libs.roborazzi.rule)
-    testImplementation(libs.roborazzi.compose.ui.test.junit4)
 
     // Android Testing
     androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.test.runner)
-    androidTestImplementation(libs.androidx.test.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
 
