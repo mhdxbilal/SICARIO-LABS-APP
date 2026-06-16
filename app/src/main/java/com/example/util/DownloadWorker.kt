@@ -153,6 +153,8 @@ class DownloadWorker(
                 return@withContext Result.failure(workDataOf(KEY_STATUS_TEXT to "Downloaded file not found or empty!"))
             }
             
+            val downloadedSize = actualFile.length()
+            
             // 3. Move file to final location choice
             var finalPath = actualFile.absolutePath
             if (destUriStr.isNotEmpty()) {
@@ -209,7 +211,7 @@ class DownloadWorker(
                 KEY_PROGRESS to 100,
                 KEY_STATUS_TEXT to "Download complete",
                 KEY_FILE_PATH to finalPath,
-                KEY_FILE_SIZE to actualFile.length()
+                KEY_FILE_SIZE to downloadedSize
             ))
             
         } catch (e: Exception) {
@@ -234,6 +236,14 @@ class DownloadWorker(
             .setOngoing(true)
             .build()
             
-        return ForegroundInfo(NOTIFICATION_ID, notification)
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ForegroundInfo(
+                NOTIFICATION_ID,
+                notification,
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            )
+        } else {
+            ForegroundInfo(NOTIFICATION_ID, notification)
+        }
     }
 }
