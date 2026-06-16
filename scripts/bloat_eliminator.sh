@@ -8,13 +8,30 @@ echo "========================================================="
 echo "🗑️ Launching Automated Anti-Bloat Codebase Shrinker..."
 echo "========================================================="
 
-# 1. Size Limit threshold config (in Megabytes). 
-# Can be overridden via environment variable, defaulting to 45.0MB to accommodate packaged assets.
+# 1. Option Parsing for dynamic inputs
 SIZE_LIMIT="${SIZE_LIMIT:-45.0}"
-
-# 2. CI Bypass Logic: Define whether exceeding size limits should fail the build
-# Set ALLOW_SIZE_BYPASS=true to only issue warnings and prevent pipeline failure.
 ALLOW_SIZE_BYPASS="${ALLOW_SIZE_BYPASS:-false}"
+
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        -l|--limit) SIZE_LIMIT="$2"; shift ;;
+        -b|--bypass) ALLOW_SIZE_BYPASS="true" ;;
+        -h|--help)
+            echo "Usage: $0 [options]"
+            echo "Options:"
+            echo "  -l, --limit <MB>      Set dynamic size limit threshold (default: 45.0)"
+            echo "  -b, --bypass          Enable non-fatal warning bypass for CI builds"
+            echo "  -h, --help            Show this help menu"
+            exit 0
+            ;;
+        *) echo "Unknown parameter passed: $1"; exit 1 ;;
+    esac
+    shift
+done
+
+# 2. Log configuration status
+echo "⚙️ Configured threshold limits: Max Size = ${SIZE_LIMIT}MB, Allow Bypass = ${ALLOW_SIZE_BYPASS}"
+
 
 # 3. Scan for dead assets / layout allocations
 echo "🔍 Scanning asset allocations and size thresholds..."
