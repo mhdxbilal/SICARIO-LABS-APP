@@ -2,36 +2,66 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <!-- OFFLINE-FIRST: No internet permission -->
+    <!-- Removed: android:usesCleartextTraffic -->
+    
+    <!-- Media & File Access -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
-    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
-    <uses-permission android:name="android.permission.CAMERA" />
-    <uses-feature android:name="android.hardware.camera" android:required="false" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    
+    <!-- Device Features -->
+    <uses-feature
+        android:name="android.hardware.audio.output"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.video.playback"
+        android:required="false" />
 
     <application
-        android:name=".MyApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
-        android:fullBackupContent="@xml/backup_rules"
+        android:fullBackupContent="@xml/backup_descriptor"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:hardwareAccelerated="true"
-        android:theme="@style/Theme.MyApplication">
+        android:theme="@style/Theme.SicarioLabsMediaPlayer"
+        android:usesCleartextTraffic="false"
+        tools:targetApi="31">
+        
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="@string/app_name"
-            android:theme="@style/Theme.MyApplication">
+            android:theme="@style/Theme.SicarioLabsMediaPlayer">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        
+        <!-- Media Session Service -->
+        <service
+            android:name=".service.MediaPlaybackService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="android.media.browse.MediaBrowserService" />
+            </intent-filter>
+        </service>
+        
+        <!-- Background Media Scanning -->
+        <service
+            android:name=".service.MediaScannerService"
+            android:exported="false" />
+        
+        <!-- Content Providers for Media -->
+        <provider
+            android:name=".database.MediaProvider"
+            android:authorities="${applicationId}.media"
+            android:exported="false" />
+
     </application>
 
 </manifest>
