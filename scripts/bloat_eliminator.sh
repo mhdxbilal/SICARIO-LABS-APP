@@ -8,24 +8,28 @@ echo "========================================================="
 echo "🗑️ Launching Automated Anti-Bloat Codebase Shrinker..."
 echo "========================================================="
 
-# 1. Size Limit threshold config (in Megabytes). Standard is set to 45.0MB to
-# comfortably accommodate the pre-packaged ~36MB yt-dlp binary asset.
-SIZE_LIMIT=45.0
+# 1. Size Limit threshold config (in Megabytes). 
+# Can be overridden via environment variable, defaulting to 45.0MB to accommodate packaged assets.
+SIZE_LIMIT="${SIZE_LIMIT:-45.0}"
 
-# 2. Scan for dead assets / layout allocations
+# 2. CI Bypass Logic: Define whether exceeding size limits should fail the build
+# Set ALLOW_SIZE_BYPASS=true to only issue warnings and prevent pipeline failure.
+ALLOW_SIZE_BYPASS="${ALLOW_SIZE_BYPASS:-false}"
+
+# 3. Scan for dead assets / layout allocations
 echo "🔍 Scanning asset allocations and size thresholds..."
 find app/src/main/res -type f -exec du -sh {} + | sort -rh | head -n 15
 
-# 3. Check for unused import groupings in sources
+# 4. Check for unused import groupings in sources
 echo "📝 Performing static code lint checking..."
 UNUSEDS=$(grep -rn "import " app/src/main | wc -l)
 echo "⚡ Total registered code bindings: $UNUSEDS imports detected."
 
-# 4. Compile and analyze artifact size
+# 5. Compile and analyze artifact size
 echo "📦 Injecting optimization parameters and building APK..."
 gradle :app:assembleDebug --no-daemon
 
-# 5. Measure generated binary metrics
+# 6. Measure generated binary metrics
 APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
 if [ -f "$APK_PATH" ]; then
     APK_SIZE=$(wc -c < "$APK_PATH")
@@ -36,6 +40,13 @@ if [ -f "$APK_PATH" ]; then
     # Assert threshold using the customized SIZE_LIMIT
     if (( $(echo "$APK_SIZE_MB > $SIZE_LIMIT" | bc 2>/dev/null || awk "BEGIN {if ($APK_SIZE_MB > $SIZE_LIMIT) print 1; else print 0}") )); then
         echo "🚨 Warning: APK size exceeds tight ${SIZE_LIMIT}MB limit! Further compression required."
+        if [ "$ALLOW_SIZE_BYPASS" = "true" ]; then
+            echo "⚠️ [BYPASS ACTIVE] Permitting compilation to complete despite exceeding size limit constraints."
+        else
+            echo "❌ [CI BLOCKED] APK size exceeded threshold of ${SIZE_LIMIT}MB."
+            echo "✨ Tip: Set ALLOW_SIZE_BYPASS=true in your CI environment variables to bypass this block."
+            exit 2
+        fi
     else
         echo "✅ APK size is within the allowed lightweight optimization limits (<${SIZE_LIMIT}MB)."
     fi
