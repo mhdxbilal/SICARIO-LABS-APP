@@ -8,20 +8,24 @@ echo "========================================================="
 echo "🗑️ Launching Automated Anti-Bloat Codebase Shrinker..."
 echo "========================================================="
 
-# 1. Scan for dead assets / layout allocations
+# 1. Size Limit threshold config (in Megabytes). Standard is set to 45.0MB to
+# comfortably accommodate the pre-packaged ~36MB yt-dlp binary asset.
+SIZE_LIMIT=45.0
+
+# 2. Scan for dead assets / layout allocations
 echo "🔍 Scanning asset allocations and size thresholds..."
 find app/src/main/res -type f -exec du -sh {} + | sort -rh | head -n 15
 
-# 2. Check for unused import groupings in sources
+# 3. Check for unused import groupings in sources
 echo "📝 Performing static code lint checking..."
 UNUSEDS=$(grep -rn "import " app/src/main | wc -l)
 echo "⚡ Total registered code bindings: $UNUSEDS imports detected."
 
-# 3. Compile and analyze artifact size
+# 4. Compile and analyze artifact size
 echo "📦 Injecting optimization parameters and building APK..."
 gradle :app:assembleDebug --no-daemon
 
-# 4. Measure generated binary metrics
+# 5. Measure generated binary metrics
 APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
 if [ -f "$APK_PATH" ]; then
     APK_SIZE=$(wc -c < "$APK_PATH")
@@ -29,11 +33,11 @@ if [ -f "$APK_PATH" ]; then
     echo "📊 Compiled APK Target: $APK_PATH"
     echo "📊 Measured APK Size: $APK_SIZE_MB MB"
     
-    # Assert threshold of 15MB to keep application lightweight
-    if (( $(echo "$APK_SIZE_MB > 15.0" | bc 2>/dev/null || awk "BEGIN {if ($APK_SIZE_MB > 15.0) print 1; else print 0}") )); then
-        echo "🚨 Warning: APK size exceeds tight 15MB limit! Further compression required."
+    # Assert threshold using the customized SIZE_LIMIT
+    if (( $(echo "$APK_SIZE_MB > $SIZE_LIMIT" | bc 2>/dev/null || awk "BEGIN {if ($APK_SIZE_MB > $SIZE_LIMIT) print 1; else print 0}") )); then
+        echo "🚨 Warning: APK size exceeds tight ${SIZE_LIMIT}MB limit! Further compression required."
     else
-        echo "✅ APK size is within the allowed lightweight optimization limits (<15MB)."
+        echo "✅ APK size is within the allowed lightweight optimization limits (<${SIZE_LIMIT}MB)."
     fi
 else
     echo "❌ APK is missing! Compilation failure detected."
