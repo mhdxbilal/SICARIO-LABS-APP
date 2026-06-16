@@ -27,6 +27,7 @@ object PlayerSettings {
     private const val KEY_SWIPE_TO_SEEK = "swipe_to_seek"
     private const val KEY_TWO_FINGER_ZOOM = "two_finger_zoom"
     private const val KEY_DOUBLE_TAP_TO_SEEK = "double_tap_to_seek"
+    private const val KEY_GESTURE_SENSITIVITY = "gesture_sensitivity"
 
     // Dashboard display and sorting keys
     private const val KEY_VIEW_MODE = "display_view_mode"
@@ -119,6 +120,9 @@ object PlayerSettings {
     fun getDoubleTapToSeek(context: Context): Boolean = getPrefs(context).getBoolean(KEY_DOUBLE_TAP_TO_SEEK, true)
     fun setDoubleTapToSeek(context: Context, value: Boolean) = getPrefs(context).edit().putBoolean(KEY_DOUBLE_TAP_TO_SEEK, value).apply()
 
+    fun getGestureSensitivity(context: Context): Float = getPrefs(context).getFloat(KEY_GESTURE_SENSITIVITY, 1.0f)
+    fun setGestureSensitivity(context: Context, value: Float) = getPrefs(context).edit().putFloat(KEY_GESTURE_SENSITIVITY, value).apply()
+
     private const val KEY_EXCLUDED_DIRECTORIES = "excluded_directories"
     private const val KEY_HIDDEN_DIRECTORIES = "hidden_directories"
 
@@ -181,4 +185,18 @@ object PlayerSettings {
 
     fun getScreenOrientation(context: Context): String = getPrefs(context).getString(KEY_SCREEN_ORIENTATION, "auto") ?: "auto"
     fun setScreenOrientation(context: Context, value: String) = getPrefs(context).edit().putString(KEY_SCREEN_ORIENTATION, value).apply()
+
+    // Advanced features keys
+    private const val KEY_FILE_ACCESS_MODE = "file_access_mode"
+    private const val KEY_ENABLE_TUNNELING = "enable_tunneling"
+    private const val KEY_DOLBY_VISION_TO_HDR_HEVC = "dolby_vision_to_hdr_hevc"
+
+    fun getFileAccessMode(context: Context): String = getPrefs(context).getString(KEY_FILE_ACCESS_MODE, "mediastore") ?: "mediastore"
+    fun setFileAccessMode(context: Context, value: String) = getPrefs(context).edit().putString(KEY_FILE_ACCESS_MODE, value).apply()
+
+    fun getEnableTunneling(context: Context): Boolean = getPrefs(context).getBoolean(KEY_ENABLE_TUNNELING, false)
+    fun setEnableTunneling(context: Context, value: Boolean) = getPrefs(context).edit().putBoolean(KEY_ENABLE_TUNNELING, value).apply()
+
+    fun getDolbyVisionToHdrHevc(context: Context): Boolean = getPrefs(context).getBoolean(KEY_DOLBY_VISION_TO_HDR_HEVC, true)
+    fun setDolbyVisionToHdrHevc(context: Context, value: Boolean) = getPrefs(context).edit().putBoolean(KEY_DOLBY_VISION_TO_HDR_HEVC, value).apply()
 }

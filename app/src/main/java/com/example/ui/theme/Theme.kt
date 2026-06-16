@@ -12,16 +12,18 @@ import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
     primary = BlueAccent,
-    onPrimary = BlueText,
+    onPrimary = OnAccentText,
     secondary = BlueAccentDark,
-    onSecondary = OnAccentText,
+    onSecondary = androidx.compose.ui.graphics.Color.White,
     background = AmoledBlack,
-    onBackground = OnAccentText,
-    surface = AmoledBlack, // Strictly #000000 for pure AMOLED black
-    onSurface = OnAccentText,
+    onBackground = BlueText,
+    surface = DarkSurface,
+    onSurface = BlueText,
     surfaceVariant = DarkSurfaceVariant,
-    onSurfaceVariant = OnAccentText,
-    outline = DarkBorder
+    onSurfaceVariant = GrayText,
+    outline = DarkBorder,
+    tertiary = LaserGreen,
+    error = LaserNeonPink
 )
 
 @Composable

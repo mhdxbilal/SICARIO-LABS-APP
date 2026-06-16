@@ -1,68 +1,36 @@
-# ProGuard Rules for SICARIO LABS Media Player
+# Add project specific ProGuard rules here.
+# You can control the set of applied configuration files using the
+# proguardFiles setting in build.gradle.
+#
+# For more details, see
+#   http://developer.android.com/guide/developing/tools/proguard.html
 
-# General rules
--verbose
--dontusemixedcaseclassnames
--dontskipnonpubliclibraryclasses
--dontskipnonpubliclibraryclassmembers
+# Keep Jetpack Compose rendering and hardware acceleration structures
+-keep class androidx.compose.ui.platform.** { *; }
+-keep class androidx.compose.runtime.** { *; }
+-keep class androidx.compose.animation.** { *; }
 
-# Keep source file names
--keepattributes SourceFile,LineNumberTable
--renamesourcefileattribute SourceFile
+# Enable aggressive static code optimizations for maximum JVM speed
+-optimizations !code/simplification/arithmetic,!field/*,!class/merging/*
 
-# Preserve annotations
--keepattributes *Annotation*,InnerClasses
-
-# Keep Kotlin metadata
--keepattributes RuntimeVisibleAnnotations
--keepattributes RuntimeInvisibleAnnotations
--keepattributes EnclosingMethod
-
-# Kotlin Coroutines
--keepclassmembers class kotlinx.coroutines.** {
-    volatile <fields>;
-}
-
-# Room Database
--keepclassmembers class * extends androidx.room.RoomDatabase { *; }
--keepclassmembers class com.siciario.labs.** { *; }
-
-# Moshi JSON
--keepclassmembers class ** {
-    @com.squareup.moshi.Json <fields>;
-}
--keepclasseswithmembers class ** {
-    @com.squareup.moshi.Json <methods>;
-}
-
-# MediaPipe
+# Keep MediaPipe & Gesture NPU bindings preserved from over-obfuscation
 -keep class com.google.mediapipe.** { *; }
+-keep class com.google.protobuf.** { *; }
 
-# ExoPlayer/Media3
--keep class androidx.media3.** { *; }
--keep class com.google.android.exoplayer2.** { *; }
+# Optimize Android Graphics and Hardware Acceleration render loops
+-keepclassmembers class * extends android.view.View {
+    public <init>(android.content.Context);
+    public <init>(android.content.Context, android.util.AttributeSet);
+    public <init>(android.content.Context, android.util.AttributeSet, int);
+    public void set*(...);
+}
 
-# Retrofit
--keepattributes Signature
--keepattributes Exceptions
--keep interface retrofit2.** { *; }
--keep class retrofit2.** { *; }
+# Preserve the line number information for crash logs and keep methods active
+-keepattributes SourceFile,LineNumberTable,Signature,InnerClasses,EnclosingMethod
 
-# OkHttp
+# Suppress warnings from unused libraries to speed up compile times (de-bloating)
 -dontwarn okhttp3.**
 -dontwarn okio.**
--keep class okhttp3.** { *; }
+-dontwarn com.google.mediapipe.**
+-dontwarn retrofit2.**
 
-# Coil Image Loading
--keep class coil.** { *; }
-
-# Application classes
--keep class com.siciario.labs.** { *; }
--keepclassmembers class com.siciario.labs.** { *; }
-
-# Remove logging in release builds
--assumenosideeffects class android.util.Log {
-    public static *** d(...);
-    public static *** v(...);
-    public static *** i(...);
-}

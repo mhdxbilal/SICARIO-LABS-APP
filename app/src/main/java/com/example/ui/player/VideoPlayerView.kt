@@ -40,6 +40,8 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.awaitFirstDown
 import com.example.data.settings.PlayerSettings
 import com.example.ui.components.PlayerSettingsDialog
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
@@ -71,6 +73,7 @@ fun VideoPlayerView(
     val context = LocalContext.current
     val activity = context as? Activity
     val coroutineScope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
 
     // 1. Load persisted dynamic settings
     var seekButtons by remember { mutableStateOf(PlayerSettings.getSeekButtons(context)) }
@@ -95,6 +98,9 @@ fun VideoPlayerView(
     var twoFingerZoomEnabled by remember { mutableStateOf(PlayerSettings.getTwoFingerZoom(context)) }
     var doubleTapToSeekEnabled by remember { mutableStateOf(PlayerSettings.getDoubleTapToSeek(context)) }
     var decoderModeSetting by remember { mutableStateOf(PlayerSettings.getDecoderMode(context)) }
+    var gestureSensitivity by remember { mutableFloatStateOf(PlayerSettings.getGestureSensitivity(context)) }
+    var enableTunnelingSetting by remember { mutableStateOf(PlayerSettings.getEnableTunneling(context)) }
+    var dolbyVisionToHdrHevcSetting by remember { mutableStateOf(PlayerSettings.getDolbyVisionToHdrHevc(context)) }
 
     fun reloadSettings() {
         seekButtons = PlayerSettings.getSeekButtons(context)
@@ -119,6 +125,9 @@ fun VideoPlayerView(
         twoFingerZoomEnabled = PlayerSettings.getTwoFingerZoom(context)
         doubleTapToSeekEnabled = PlayerSettings.getDoubleTapToSeek(context)
         decoderModeSetting = PlayerSettings.getDecoderMode(context)
+        gestureSensitivity = PlayerSettings.getGestureSensitivity(context)
+        enableTunnelingSetting = PlayerSettings.getEnableTunneling(context)
+        dolbyVisionToHdrHevcSetting = PlayerSettings.getDolbyVisionToHdrHevc(context)
     }
 
     // Force Landscape Lock & Keep Screen Awake (Bound to lockWithSensor setting)
@@ -251,10 +260,17 @@ fun VideoPlayerView(
     var originalVolumeOnDragStart by remember { mutableFloatStateOf(0f) }
 
     // 2. Setup ExoPlayer
-    val player = remember(decoderModeSetting) {
+    val player = remember(decoderModeSetting, enableTunnelingSetting, dolbyVisionToHdrHevcSetting) {
         val hardwareSelector = MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
-            val decoders = MediaCodecSelector.DEFAULT.getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder)
-            if (mimeType == MimeTypes.VIDEO_H264 || mimeType == MimeTypes.VIDEO_H265 || mimeType == MimeTypes.VIDEO_AV1) {
+            // Fallback Dolby Vision Profile 7 to HDR HEVC
+            val targetMime = if ((mimeType == MimeTypes.VIDEO_DOLBY_VISION || mimeType == "video/dolby-vision") && dolbyVisionToHdrHevcSetting) {
+                MimeTypes.VIDEO_H265
+            } else {
+                mimeType
+            }
+            val tunnelEnabled = requiresTunnelingDecoder || enableTunnelingSetting
+            val decoders = MediaCodecSelector.DEFAULT.getDecoderInfos(targetMime, requiresSecureDecoder, tunnelEnabled)
+            if (targetMime == MimeTypes.VIDEO_H264 || targetMime == MimeTypes.VIDEO_H265 || targetMime == MimeTypes.VIDEO_AV1) {
                 decoders.sortedWith { a, b ->
                     when {
                         a.hardwareAccelerated && !b.hardwareAccelerated -> if (decoderModeSetting == "software") 1 else -1
@@ -269,6 +285,7 @@ fun VideoPlayerView(
         val renderersFactory = DefaultRenderersFactory(context).apply {
             setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
             setMediaCodecSelector(hardwareSelector)
+            setEnableDecoderFallback(true) // Allows automatic fallback to alternative decoders if hardware limits are hit
         }
         com.example.util.MediaCacheManager.buildExoPlayer(context, renderersFactory)
     }
@@ -540,7 +557,7 @@ fun VideoPlayerView(
                             }
                             GestureType.VERTICAL -> {
                                 if (!isLeftGestureSide && volumeGestureEnabled) {
-                                    val volumeDelta = -(accumDeltaY / size.height) * maxMusicVolume
+                                    val volumeDelta = -(accumDeltaY / size.height) * maxMusicVolume * gestureSensitivity
                                     val targetVol = (originalVolumeOnDragStart + volumeDelta)
                                         .coerceIn(0f, maxMusicVolume)
                                     audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, targetVol.toInt(), 0)
@@ -550,7 +567,7 @@ fun VideoPlayerView(
                                         PlayerSettings.setSavedVolumeVal(context, targetVolDecimal)
                                     }
                                 } else if (isLeftGestureSide && brightnessGestureEnabled) {
-                                    val brightnessDelta = -(accumDeltaY / size.height)
+                                    val brightnessDelta = -(accumDeltaY / size.height) * gestureSensitivity
                                     val targetBrightness = (originalBrightnessOnDragStart + brightnessDelta)
                                         .coerceIn(0.01f, 1.0f)
                                     activity?.let { act ->
@@ -674,7 +691,7 @@ fun VideoPlayerView(
                 contentAlignment = Alignment.Center
             ) {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF141414)),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
                     elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.widthIn(max = 500.dp)
@@ -989,7 +1006,10 @@ fun VideoPlayerView(
                 ) {
                     // 1. Skip Previous
                     IconButton(
-                        onClick = onPlayPrevious,
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onPlayPrevious()
+                        },
                         modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
@@ -1004,6 +1024,7 @@ fun VideoPlayerView(
                     if (seekButtons) {
                         IconButton(
                             onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 val target = (player.currentPosition - fwdBwdDelay * 1000L).coerceAtLeast(0L)
                                 player.seekTo(target)
                                 currentPosition = target
@@ -1038,6 +1059,7 @@ fun VideoPlayerView(
                         modifier = Modifier
                             .size(72.dp)
                             .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 if (isPlaying) player.pause() else player.play()
                             }
                     ) {
@@ -1055,6 +1077,7 @@ fun VideoPlayerView(
                     if (seekButtons) {
                         IconButton(
                             onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 val target = (player.currentPosition + fwdBwdDelay * 1000L).coerceAtMost(totalDuration)
                                 player.seekTo(target)
                                 currentPosition = target
@@ -1086,7 +1109,10 @@ fun VideoPlayerView(
 
                     // 5. Skip Next
                     IconButton(
-                        onClick = onPlayNext,
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onPlayNext()
+                        },
                         modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
@@ -1459,7 +1485,7 @@ fun AudioTrackChooserDialog(
     ) {
         Surface(
             shape = RoundedCornerShape(16.dp),
-            color = Color(0xFF161618),
+            color = Color(0xFF121212),
             modifier = Modifier
                 .width(320.dp)
                 .wrapContentHeight()
@@ -1524,7 +1550,7 @@ fun SubtitleTrackChooserDialog(
     ) {
         Surface(
             shape = RoundedCornerShape(16.dp),
-            color = Color(0xFF161618),
+            color = Color(0xFF121212),
             modifier = Modifier
                 .width(320.dp)
                 .wrapContentHeight()
@@ -1608,7 +1634,7 @@ fun PlaybackSpeedChooserDialog(
     ) {
         Surface(
             shape = RoundedCornerShape(16.dp),
-            color = Color(0xFF161618),
+            color = Color(0xFF121212),
             modifier = Modifier
                 .width(320.dp)
                 .wrapContentHeight()
@@ -1690,7 +1716,7 @@ fun VideoZoomChooserDialog(
     ) {
         Surface(
             shape = RoundedCornerShape(16.dp),
-            color = Color(0xFF161618),
+            color = Color(0xFF121212),
             modifier = Modifier
                 .width(320.dp)
                 .wrapContentHeight()

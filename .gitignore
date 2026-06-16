@@ -1,71 +1,23 @@
-# Gradle
-.gradle/
-build/
-*.apk
-*.aar
-*.ap_
-*.aab
-
-# AS
-.idea/
 *.iml
-*.iws
-*.ipr
+.gradle
+.kotlin
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
 .DS_Store
-
-# Local environment
-.env
+/build
+/captures
+.externalNativeBuild
+.cxx
 local.properties
+.env
 debug.keystore
-my-upload-key.jks
 
-# Kotlin
-kotlin-build/
-
-# Compiled files
-*.class
-*.jar
-*.war
-*.rar
-
-# Maven
-target/
-pom.xml.tag
-pom.xml.releaseBackup
-pom.xml.versionsBackup
-pom.xml.next
-release.properties
-dependency-reduced-pom.xml
-
-# Temporary files
-*.tmp
-*.log
-*.bak
-*.swp
-*~
-
-# OS
-Thumbs.db
-.DS_Store
-
-# IDE
-.vscode/
-*.sublime-workspace
-*.sublime-project
-
-# Node (if using any frontend tools)
-node_modules/
-npm-debug.log
-yarn-error.log
-
-# Test coverage
-coverage/
-jacoco.xml
-
-# Database files
-*.db
-*.sqlite
-
-# Cache files
-.cache/
-*.cache
+# Gradle Wrapper
+!gradle/wrapper/gradle-wrapper.jar
+!gradlew
+!gradlew.bat

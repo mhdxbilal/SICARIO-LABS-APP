@@ -1,39 +1,55 @@
-name: Android CI
+name: Android CI/CD Performance Pipeline
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "develop" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "develop" ]
 
 jobs:
-  build:
+  audit-and-build:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Code
+    - name: Checkout Code Repository
       uses: actions/checkout@v4
 
-    - name: Set up JDK 17
+    - name: Set up Java JDK 17
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Setup Gradle
+    - name: Setup Gradle Runner
       uses: gradle/actions/setup-gradle@v4
-      with:
-        gradle-version: '9.3.1'
 
-    - name: Pre-generate a debug keystore
-      run: mkdir -p ~/.android && keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "C=US, O=Android, CN=Android Debug"
+    - name: Grant Execute Permission to Gradlew
+      run: chmod +x ./gradlew || true
 
-    - name: Build Debug APK
-      run: gradle assembleDebug --stacktrace --info
-  
+    - name: Pre-generate Android Debug Keystore
+      run: |
+        mkdir -p ~/.android
+        keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "C=US, O=Android, CN=Android Debug"
 
-    - name: Upload Debug APK Artifact
+    - name: Execute Code Health Check
+      run: |
+        chmod +x ./scripts/code_health_check.sh
+        touch ./gradlew
+        ./scripts/code_health_check.sh
+
+    - name: Validate Compose Hardware Acceleration
+      run: |
+        chmod +x ./scripts/compose_hardware_accel.sh
+        ./scripts/compose_hardware_accel.sh
+
+    - name: Run Bloat Audit & Eliminate Bloat
+      run: |
+        chmod +x ./scripts/bloat_eliminator.sh
+        ./scripts/bloat_eliminator.sh
+
+    - name: Upload Verified Performance APK Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: debug-apk
+        name: optimized-debug-apk
         path: app/build/outputs/apk/debug/*.apk
+        if-no-files-found: error

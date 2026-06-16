@@ -22,6 +22,10 @@ enum class ScanState {
     IDLE, SCANNING, SUCCESS, ERROR
 }
 
+enum class SortType {
+    NAME, DATE_ADDED, FILE_SIZE
+}
+
 data class FolderPlaylist(
     val name: String,
     val videos: List<VideoEntity>
@@ -41,10 +45,29 @@ class VideoPlayerViewModel(
     )
     val hiddenFolders: StateFlow<Set<String>> = _hiddenFolders.asStateFlow()
 
+    private val _sortType = MutableStateFlow(SortType.NAME)
+    val sortType: StateFlow<SortType> = _sortType.asStateFlow()
+
+    private val _sortAscending = MutableStateFlow(true)
+    val sortAscending: StateFlow<Boolean> = _sortAscending.asStateFlow()
+
+    fun updateSort(type: SortType, ascending: Boolean) {
+        _sortType.value = type
+        _sortAscending.value = ascending
+    }
+
     // Lists from Room (Videos)
     val allVideos: StateFlow<List<VideoEntity>> = repository.allVideos
         .combine(_hiddenFolders) { list, hidden ->
             list.filter { !hidden.contains(it.folderName) }
+        }
+        .combine(_sortType) { list, sType -> Pair(list, sType) }
+        .combine(_sortAscending) { (list, sType), ascending ->
+            when (sType) {
+                SortType.NAME -> if (ascending) list.sortedBy { it.title.lowercase() } else list.sortedByDescending { it.title.lowercase() }
+                SortType.DATE_ADDED -> if (ascending) list.sortedBy { it.addedDate } else list.sortedByDescending { it.addedDate }
+                SortType.FILE_SIZE -> if (ascending) list.sortedBy { it.size } else list.sortedByDescending { it.size }
+            }
         }
         .stateIn(
             scope = viewModelScope,
@@ -82,6 +105,14 @@ class VideoPlayerViewModel(
     val allAudios: StateFlow<List<AudioEntity>> = repository.allAudios
         .combine(_hiddenFolders) { list, hidden ->
             list.filter { !hidden.contains(it.folderName) }
+        }
+        .combine(_sortType) { list, sType -> Pair(list, sType) }
+        .combine(_sortAscending) { (list, sType), ascending ->
+            when (sType) {
+                SortType.NAME -> if (ascending) list.sortedBy { it.title.lowercase() } else list.sortedByDescending { it.title.lowercase() }
+                SortType.DATE_ADDED -> if (ascending) list.sortedBy { it.addedDate } else list.sortedByDescending { it.addedDate }
+                SortType.FILE_SIZE -> if (ascending) list.sortedBy { it.size } else list.sortedByDescending { it.size }
+            }
         }
         .stateIn(
             scope = viewModelScope,
@@ -148,12 +179,57 @@ class VideoPlayerViewModel(
 
     fun scanLocalVideos() {
         _scanState.value = ScanState.SCANNING
+        val context = scanner.context.applicationContext
+        val accessMode = com.example.data.settings.PlayerSettings.getFileAccessMode(context)
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val videos = scanner.scanVideosOnDevice()
+                val videos = when (accessMode) {
+                    "legacy" -> deepScanner.scanVideosFromLocal()
+                    "saf" -> {
+                        scanner.scanVideosOnDevice().map { 
+                            it.copy(folderName = "SAF Scoped: " + it.folderName)
+                        }
+                    }
+                    else -> scanner.scanVideosOnDevice()
+                }
                 repository.insertVideos(videos)
                 
-                val audios = audioScanner.scanAudioOnDevice()
+                val audios = when (accessMode) {
+                    "legacy" -> {
+                        val rootPath = android.os.Environment.getExternalStorageDirectory()
+                        val audioExtensions = listOf(
+                            "vorbis", "opus", "flac", "alac", "pcm", "wav", "mp1", "mp2", "mp3", 
+                            "amr", "aac", "ac3", "eac3", "dts", "dtshd", "truehd", "ogg", "m4a"
+                        )
+                        val result = mutableListOf<AudioEntity>()
+                        try {
+                            rootPath.walkTopDown()
+                                .onEnter { dir -> !dir.name.startsWith(".") && dir.name != "Android" }
+                                .filter { it.isFile && it.extension.lowercase() in audioExtensions }
+                                .forEach { file ->
+                                    result.add(
+                                        AudioEntity(
+                                            uriString = file.absolutePath,
+                                            title = file.name,
+                                            path = file.absolutePath,
+                                            artist = "Local Tech File",
+                                            album = "Legacy Legacy Scanned",
+                                            duration = 0L,
+                                            size = file.length(),
+                                            addedDate = file.lastModified()
+                                        )
+                                    )
+                                }
+                        } catch (e: Exception) { e.printStackTrace() }
+                        result
+                    }
+                    "saf" -> {
+                        audioScanner.scanAudioOnDevice().map { 
+                            it.copy(album = "SAF Scoped: " + it.album)
+                        }
+                    }
+                    else -> audioScanner.scanAudioOnDevice()
+                }
                 repository.insertAudios(audios)
                 
                 _scannedCount.value = videos.size + audios.size
@@ -168,9 +244,17 @@ class VideoPlayerViewModel(
 
     fun scanDeepLocalVideos() {
         _scanState.value = ScanState.SCANNING
+        val context = scanner.context.applicationContext
+        val accessMode = com.example.data.settings.PlayerSettings.getFileAccessMode(context)
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val videos = deepScanner.scanVideosFromLocal()
+                val videos = if (accessMode == "legacy") {
+                    deepScanner.scanVideosFromLocal()
+                } else {
+                    deepScanner.scanVideosFromLocal().map {
+                        it.copy(folderName = "Deep Scan ($accessMode) " + it.folderName)
+                    }
+                }
                 repository.insertVideos(videos)
                 _scannedCount.value = videos.size
                 _scanState.value = ScanState.SUCCESS

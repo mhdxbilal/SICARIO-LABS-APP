@@ -9,7 +9,9 @@ class RecursiveDirectoryScanner(val context: Context) {
 
     fun scanVideosFromLocal(): List<VideoEntity> {
         val rootPath = Environment.getExternalStorageDirectory()
-        val videoExtensions = listOf("mp4", "mkv", "avi")
+        val videoExtensions = listOf(
+            "mp4", "mkv", "avi", "mov", "webm", "ogg", "ts", "ps", "flv", "3gp", "h263", "h264", "h265", "hevc", "mpeg4", "vp8", "vp9", "av1"
+        )
         val result = mutableListOf<VideoEntity>()
         val excludedDirs = PlayerSettings.getExcludedDirectories(context)
 

@@ -71,6 +71,7 @@ fun PlayerSettingsDialog(
     var swipeToSeek by remember { mutableStateOf(PlayerSettings.getSwipeToSeek(context)) }
     var twoFingerZoom by remember { mutableStateOf(PlayerSettings.getTwoFingerZoom(context)) }
     var doubleTapToSeek by remember { mutableStateOf(PlayerSettings.getDoubleTapToSeek(context)) }
+    var gestureSensitivity by remember { mutableFloatStateOf(PlayerSettings.getGestureSensitivity(context)) }
 
     // Library & Display local state mirrors for live visual changes
     var displayViewModeVal by remember { mutableStateOf(displayViewMode) }
@@ -93,8 +94,17 @@ fun PlayerSettingsDialog(
                 .fillMaxWidth(0.95f)
                 .fillMaxHeight(0.85f)
                 .padding(12.dp),
-            shape = RoundedCornerShape(16.dp),
-            color = Color(0xFF0F0F11)
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.background,
+            border = androidx.compose.foundation.BorderStroke(
+                width = 1.dp,
+                brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                    colors = listOf(
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f)
+                    )
+                )
+            )
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 // Top Header Row - Scrollable Minimalist Tabs, zero distraction
@@ -109,59 +119,38 @@ fun PlayerSettingsDialog(
                         modifier = Modifier
                             .weight(1f)
                             .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Controls",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (activeTab == 0) MaterialTheme.colorScheme.primary else Color.Gray,
-                            modifier = Modifier
-                                .clickable { activeTab = 0 }
-                                .padding(vertical = 4.dp)
-                        )
-                        Text(
-                            text = "Gestures",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (activeTab == 1) MaterialTheme.colorScheme.primary else Color.Gray,
-                            modifier = Modifier
-                                .clickable { activeTab = 1 }
-                                .padding(vertical = 4.dp)
-                        )
-                        Text(
-                            text = "Equalizer",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (activeTab == 2) MaterialTheme.colorScheme.primary else Color.Gray,
-                            modifier = Modifier
-                                .clickable { activeTab = 2 }
-                                .padding(vertical = 4.dp)
-                        )
-                        
+                        val tabsList = mutableListOf<Pair<Int, String>>()
+                        tabsList.add(0 to "CONTROLS")
+                        tabsList.add(1 to "GESTURES")
+                        tabsList.add(2 to "EQUALIZER")
                         if (onSortChanged != null) {
-                            Text(
-                                text = "Display & Sorting",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (activeTab == 3) MaterialTheme.colorScheme.primary else Color.Gray,
-                                modifier = Modifier
-                                    .clickable { activeTab = 3 }
-                                    .padding(vertical = 4.dp)
-                            )
+                            tabsList.add(3 to "DISPLAY & SORT")
+                        }
+                        if (onAutomatedScan != null) {
+                            tabsList.add(4 to "LIBRARY")
                         }
 
-                        if (onAutomatedScan != null) {
-                            Text(
-                                text = "Library & Scanning",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (activeTab == 4) MaterialTheme.colorScheme.primary else Color.Gray,
+                        tabsList.forEach { (tabId, tabName) ->
+                            val isSelected = activeTab == tabId
+                            Surface(
+                                color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent,
+                                shape = RoundedCornerShape(8.dp),
+                                border = if (isSelected) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)) else androidx.compose.foundation.BorderStroke(1.dp, Color.Transparent),
                                 modifier = Modifier
-                                    .clickable { activeTab = 4 }
-                                    .padding(vertical = 4.dp)
-                            )
+                                    .clickable { activeTab = tabId }
+                            ) {
+                                Text(
+                                    text = tabName,
+                                    fontSize = 11.sp,
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Gray,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                )
+                            }
                         }
                     }
 
@@ -374,6 +363,20 @@ fun PlayerSettingsDialog(
                                 onCheckedChange = {
                                     doubleTapToSeek = it
                                     PlayerSettings.setDoubleTapToSeek(context, it)
+                                }
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            SettingSlider(
+                                title = "Swipe gesture sensitivity",
+                                description = "${"%.1f".format(gestureSensitivity)}x",
+                                value = gestureSensitivity,
+                                valueRange = 0.2f..2.0f,
+                                steps = 17,
+                                onValueChange = {
+                                    gestureSensitivity = it
+                                    PlayerSettings.setGestureSensitivity(context, it)
                                 }
                             )
                         } else if (activeTab == 2) {
@@ -634,6 +637,106 @@ fun PlayerSettingsDialog(
                                     onDismiss()
                                 }
                             )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Text(
+                                text = "Advanced Playback Decoders",
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+
+                            // File Access Mode
+                            var fileAccessModeVal by remember { mutableStateOf(PlayerSettings.getFileAccessMode(context)) }
+                            SettingClickable(
+                                title = "File Access Mode",
+                                value = when (fileAccessModeVal) {
+                                    "mediastore" -> "MediaStore (Recommended/Default)"
+                                    "saf" -> "Storage Access Framework"
+                                    "legacy" -> "Legacy File Access (Direct Disk Walker)"
+                                    else -> "MediaStore"
+                                },
+                                onClick = {
+                                    val nextMode = when (fileAccessModeVal) {
+                                        "mediastore" -> "saf"
+                                        "saf" -> "legacy"
+                                        else -> "mediastore"
+                                    }
+                                    fileAccessModeVal = nextMode
+                                    PlayerSettings.setFileAccessMode(context, nextMode)
+                                }
+                            )
+
+                            // Tunneled Playback
+                            var tunnelingVal by remember { mutableStateOf(PlayerSettings.getEnableTunneling(context)) }
+                            SettingCheckbox(
+                                title = "Tunneled Playback",
+                                description = "Enable hardware video tunneling to optimize playbacks of 4K/HDR content on supported TVs",
+                                checked = tunnelingVal,
+                                onCheckedChange = {
+                                    tunnelingVal = it
+                                    PlayerSettings.setEnableTunneling(context, it)
+                                }
+                            )
+
+                            // Dolby Vision Fallback
+                            var dvFallbackVal by remember { mutableStateOf(PlayerSettings.getDolbyVisionToHdrHevc(context)) }
+                            SettingCheckbox(
+                                title = "Dolby Vision Profile 7 Fallback",
+                                description = "Decode Dolby Vision Profile 7 (Blu-ray UHD) as compatible HDR HEVC on legacy hardware",
+                                checked = dvFallbackVal,
+                                onCheckedChange = {
+                                    dvFallbackVal = it
+                                    PlayerSettings.setDolbyVisionToHdrHevc(context, it)
+                                }
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Text(
+                                text = "System Media & Format Support Matrix",
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.secondary,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                shape = RoundedCornerShape(12.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text(
+                                        text = "NATIVE SYSTEM DECODERS STATUS (ACTIVE)",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Bold
+                                        ),
+                                        modifier = Modifier.padding(bottom = 8.dp)
+                                    )
+                                    
+                                    FormatGroupRow(category = "AUDIO", formats = listOf("Vorbis", "Opus", "FLAC", "ALAC", "PCM/WAVE", "MP1/2/3", "AMR", "AAC", "AC-3/E-AC-3", "DTS/DTS-HD", "TrueHD", "IAMF", "MPEG-H"))
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    
+                                    FormatGroupRow(category = "VIDEO", formats = listOf("H.263", "H.264 AVC", "H.265 HEVC", "MPEG-4 SP", "VP8", "VP9", "AV1"))
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    FormatGroupRow(category = "CONTAINERS", formats = listOf("MP4", "MOV", "WebM", "MKV", "Ogg", "MPEG-TS", "MPEG-PS", "FLV", "AVI"))
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    FormatGroupRow(category = "STREAMING", formats = listOf("DASH", "HLS", "SmoothStreaming", "RTSP"))
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    FormatGroupRow(category = "SUBTITLES", formats = listOf("SRT", "SSA/ASS", "TTML", "VTT", "DVB"))
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
 
                             SettingClickable(
                                 title = "Run Deep Local Sweep",
@@ -1350,6 +1453,59 @@ fun VerticalEqualizerSlider(
             color = if (enabled) Color.White else Color.Gray,
             fontWeight = FontWeight.Bold
         )
+    }
+}
+
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+fun FormatGroupRow(category: String, formats: List<String>) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = category,
+                fontSize = 10.sp,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.secondary,
+                modifier = Modifier.width(90.dp)
+            )
+            androidx.compose.foundation.layout.FlowRow(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                formats.forEach { format ->
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                        shape = RoundedCornerShape(4.dp),
+                        border = androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(4.dp)
+                                    .background(Color(0xFF00FFCC), RoundedCornerShape(2.dp))
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = format,
+                                fontSize = 9.sp,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

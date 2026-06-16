@@ -1,6 +1,8 @@
 package com.example.ui.main
 
 import android.content.Context
+import com.example.ui.theme.BlueAccent
+import com.example.ui.theme.BlueAccentDark
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -8,6 +10,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
@@ -41,6 +44,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.compose.animation.core.*
 import com.example.ui.viewmodel.ScanState
 import com.example.ui.viewmodel.VideoPlayerViewModel
+import com.example.ui.viewmodel.SortType
 import android.net.Uri
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.BottomSheetDefaults
@@ -70,6 +74,13 @@ import androidx.compose.animation.core.spring
 
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.LocalIndication
+import android.content.Intent
+import androidx.compose.ui.draw.shadow
+import androidx.work.WorkManager
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.workDataOf
+import com.example.util.DownloadWorker
+import androidx.compose.runtime.collectAsState
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -215,6 +226,16 @@ fun MediaDashboardScreen(
     LaunchedEffect(sortFieldSetting) { PlayerSettings.setSortField(context, sortFieldSetting) }
     LaunchedEffect(sortOrderSetting) { PlayerSettings.setSortOrder(context, sortOrderSetting) }
     LaunchedEffect(groupBySetting) { PlayerSettings.setGroupBySetting(context, groupBySetting) }
+    LaunchedEffect(sortFieldSetting, sortOrderSetting) {
+        val type = when (sortFieldSetting) {
+            "name", "file_name" -> SortType.NAME
+            "added_date" -> SortType.DATE_ADDED
+            "size" -> SortType.FILE_SIZE
+            else -> SortType.NAME
+        }
+        val ascending = (sortOrderSetting == "asc")
+        viewModel.updateSort(type, ascending)
+    }
     var quickPlayVideo by remember { mutableStateOf<VideoEntity?>(null) }
     var isSearchExpanded by remember { mutableStateOf(false) }
     var isSortMenuExpanded by remember { mutableStateOf(false) }
@@ -333,8 +354,17 @@ fun MediaDashboardScreen(
         topBar = {
             Column(
                 modifier = Modifier
-                    .background(Color.Black)
+                    .background(MaterialTheme.colorScheme.background)
                     .statusBarsPadding()
+                    .drawBehind {
+                        // Sleek tech accent divider
+                        drawLine(
+                            color = BlueAccent.copy(alpha = 0.2f),
+                            start = androidx.compose.ui.geometry.Offset(0f, size.height),
+                            end = androidx.compose.ui.geometry.Offset(size.width, size.height),
+                            strokeWidth = 1.dp.toPx()
+                        )
+                    }
             ) {
                 Row(
                     modifier = Modifier
@@ -343,18 +373,40 @@ fun MediaDashboardScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        text = when(currentSection) {
-                            "Video" -> "Videos"
-                            "Audio" -> "Music Library"
-                            "Browse" -> "Browse Files"
-                            "Playlists" -> "Playlists"
-                            else -> "More Settings"
-                        },
-                        style = MaterialTheme.typography.titleLarge,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(4.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+                        ) {
+                            Text(
+                                "SYS.ACT",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                    fontSize = 9.sp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                        Text(
+                            text = when(currentSection) {
+                                "Video" -> "VIDEOS"
+                                "Audio" -> "MUSIC"
+                                "Browse" -> "FILES"
+                                "Playlists" -> "PLAYLISTS"
+                                else -> "SETTINGS"
+                            },
+                            style = MaterialTheme.typography.titleLarge,
+                            color = Color.White,
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 1.5.sp
+                        )
+                    }
 
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         IconButton(
@@ -395,6 +447,12 @@ fun MediaDashboardScreen(
                             ) {
                                 DropdownMenuItem(
                                     text = { Text("Name (A-Z)") },
+                                    leadingIcon = {
+                                        if (sortFieldSetting == "name" && sortOrderSetting == "asc") {
+                                            Icon(Icons.Default.Check, contentDescription = "Active", tint = MaterialTheme.colorScheme.primary)
+                                        }
+                                    },
+                                    modifier = Modifier.testTag("sort_name_asc"),
                                     onClick = {
                                         sortFieldSetting = "name"
                                         sortOrderSetting = "asc"
@@ -403,6 +461,12 @@ fun MediaDashboardScreen(
                                 )
                                 DropdownMenuItem(
                                     text = { Text("Name (Z-A)") },
+                                    leadingIcon = {
+                                        if (sortFieldSetting == "name" && sortOrderSetting == "desc") {
+                                            Icon(Icons.Default.Check, contentDescription = "Active", tint = MaterialTheme.colorScheme.primary)
+                                        }
+                                    },
+                                    modifier = Modifier.testTag("sort_name_desc"),
                                     onClick = {
                                         sortFieldSetting = "name"
                                         sortOrderSetting = "desc"
@@ -411,6 +475,12 @@ fun MediaDashboardScreen(
                                 )
                                 DropdownMenuItem(
                                     text = { Text("Date Added (Newest)") },
+                                    leadingIcon = {
+                                        if (sortFieldSetting == "added_date" && sortOrderSetting == "desc") {
+                                            Icon(Icons.Default.Check, contentDescription = "Active", tint = MaterialTheme.colorScheme.primary)
+                                        }
+                                    },
+                                    modifier = Modifier.testTag("sort_date_desc"),
                                     onClick = {
                                         sortFieldSetting = "added_date"
                                         sortOrderSetting = "desc"
@@ -419,6 +489,12 @@ fun MediaDashboardScreen(
                                 )
                                 DropdownMenuItem(
                                     text = { Text("Date Added (Oldest)") },
+                                    leadingIcon = {
+                                        if (sortFieldSetting == "added_date" && sortOrderSetting == "asc") {
+                                            Icon(Icons.Default.Check, contentDescription = "Active", tint = MaterialTheme.colorScheme.primary)
+                                        }
+                                    },
+                                    modifier = Modifier.testTag("sort_date_asc"),
                                     onClick = {
                                         sortFieldSetting = "added_date"
                                         sortOrderSetting = "asc"
@@ -427,6 +503,12 @@ fun MediaDashboardScreen(
                                 )
                                 DropdownMenuItem(
                                     text = { Text("File Size (Largest)") },
+                                    leadingIcon = {
+                                        if (sortFieldSetting == "size" && sortOrderSetting == "desc") {
+                                            Icon(Icons.Default.Check, contentDescription = "Active", tint = MaterialTheme.colorScheme.primary)
+                                        }
+                                    },
+                                    modifier = Modifier.testTag("sort_size_desc"),
                                     onClick = {
                                         sortFieldSetting = "size"
                                         sortOrderSetting = "desc"
@@ -435,6 +517,12 @@ fun MediaDashboardScreen(
                                 )
                                 DropdownMenuItem(
                                     text = { Text("File Size (Smallest)") },
+                                    leadingIcon = {
+                                        if (sortFieldSetting == "size" && sortOrderSetting == "asc") {
+                                            Icon(Icons.Default.Check, contentDescription = "Active", tint = MaterialTheme.colorScheme.primary)
+                                        }
+                                    },
+                                    modifier = Modifier.testTag("sort_size_asc"),
                                     onClick = {
                                         sortFieldSetting = "size"
                                         sortOrderSetting = "asc"
@@ -531,13 +619,13 @@ fun MediaDashboardScreen(
             }
         },
         bottomBar = {
-            Column(modifier = Modifier.background(Color(0xFF101012))) {
+            Column(modifier = Modifier.background(Color(0xFF000000))) {
                 if (playingAudio != null && !showFullAudioPlayerSheet) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { showFullAudioPlayerSheet = true }
-                            .background(Color(0xFF161618))
+                            .background(Color(0xFF121212))
                             .padding(horizontal = 16.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -545,13 +633,13 @@ fun MediaDashboardScreen(
                             modifier = Modifier
                                 .size(40.dp)
                                 .clip(RoundedCornerShape(8.dp)),
-                            color = if (isAudioPlaying) Color(0xFFFF9800).copy(alpha = 0.2f) else Color(0xFF2E2E32)
+                            color = if (isAudioPlaying) Color(0xFF3B82F6).copy(alpha = 0.2f) else Color(0xFF1A1A1A)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     imageVector = Icons.Default.MusicNote,
                                     contentDescription = null,
-                                    tint = if (isAudioPlaying) Color(0xFFFF9800) else Color.LightGray
+                                    tint = if (isAudioPlaying) Color(0xFF3B82F6) else Color(0xFF9CA3AF)
                                 )
                             }
                         }
@@ -571,7 +659,7 @@ fun MediaDashboardScreen(
                                 Text(
                                     text = playingAudio!!.artist,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = Color.LightGray,
+                                    color = Color(0xFF9CA3AF),
                                     maxLines = 1
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -579,10 +667,10 @@ fun MediaDashboardScreen(
                                     Text(
                                         text = "Hi-Res Lossless",
                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
-                                        color = Color(0xFFFFD700),
+                                        color = Color(0xFF14B8A6), // Premium Teal color for Hi-res audio
                                         fontWeight = FontWeight.Bold,
                                         modifier = Modifier
-                                            .background(Color(0xFF2D250D), RoundedCornerShape(4.dp))
+                                            .background(Color(0xFF0F2D2A), RoundedCornerShape(4.dp))
                                             .padding(horizontal = 4.dp, vertical = 1.dp)
                                     )
                                 } else if (playingAudio!!.isLossless) {
@@ -599,6 +687,61 @@ fun MediaDashboardScreen(
                             }
                         }
 
+                        val playPauseInteractionSource = remember { MutableInteractionSource() }
+                        val isPlayPausePressed by playPauseInteractionSource.collectIsPressedAsState()
+                        
+                        val nextInteractionSource = remember { MutableInteractionSource() }
+                        val isNextPressed by nextInteractionSource.collectIsPressedAsState()
+
+                        val playPauseScaleState = remember { Animatable(1f) }
+                        LaunchedEffect(isAudioPlaying) {
+                            playPauseScaleState.animateTo(
+                                targetValue = 0.85f,
+                                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
+                            )
+                            playPauseScaleState.animateTo(
+                                targetValue = 1.0f,
+                                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
+                            )
+                        }
+
+                        val nextScaleState = remember { Animatable(1f) }
+                        val nextRotationState = remember { Animatable(0f) }
+                        LaunchedEffect(playingAudio?.uriString) {
+                            if (playingAudio != null) {
+                                launch {
+                                    nextScaleState.animateTo(
+                                        targetValue = 0.82f,
+                                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
+                                    )
+                                    nextScaleState.animateTo(
+                                        targetValue = 1.0f,
+                                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
+                                    )
+                                }
+                                launch {
+                                    nextRotationState.animateTo(
+                                        targetValue = 20f,
+                                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
+                                    )
+                                    nextRotationState.animateTo(
+                                        targetValue = 0f,
+                                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
+                                    )
+                                }
+                            }
+                        }
+
+                        val interactivePlayPauseScale by animateFloatAsState(
+                            targetValue = if (isPlayPausePressed) 0.82f else playPauseScaleState.value,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
+                        )
+
+                        val interactiveNextScale by animateFloatAsState(
+                            targetValue = if (isNextPressed) 0.82f else nextScaleState.value,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
+                        )
+
                         IconButton(
                             onClick = {
                                 if (isAudioPlaying) {
@@ -606,6 +749,11 @@ fun MediaDashboardScreen(
                                 } else {
                                     audioPlayer.play()
                                 }
+                            },
+                            interactionSource = playPauseInteractionSource,
+                            modifier = Modifier.graphicsLayer {
+                                scaleX = interactivePlayPauseScale
+                                scaleY = interactivePlayPauseScale
                             }
                         ) {
                             Icon(
@@ -615,7 +763,15 @@ fun MediaDashboardScreen(
                             )
                         }
 
-                        IconButton(onClick = { viewModel.playNextAudio() }) {
+                        IconButton(
+                            onClick = { viewModel.playNextAudio() },
+                            interactionSource = nextInteractionSource,
+                            modifier = Modifier.graphicsLayer {
+                                scaleX = interactiveNextScale
+                                scaleY = interactiveNextScale
+                                rotationZ = nextRotationState.value
+                            }
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.SkipNext,
                                 contentDescription = "Next Track",
@@ -627,7 +783,7 @@ fun MediaDashboardScreen(
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = "Close player",
-                                tint = Color.Gray
+                                tint = Color(0xFF9CA3AF)
                             )
                         }
                     }
@@ -637,20 +793,31 @@ fun MediaDashboardScreen(
                             else 0f
                         },
                         modifier = Modifier.fillMaxWidth().height(2.dp),
-                        color = Color(0xFFFF9800),
-                        trackColor = Color(0xFF28282D)
+                        color = Color(0xFF3B82F6),
+                        trackColor = Color(0xFF262626)
                     )
                 }
 
                 NavigationBar(
-                    containerColor = Color(0xFF101012),
-                    contentColor = Color.LightGray,
-                    modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tonalElevation = 8.dp,
+                    modifier = Modifier
+                        .windowInsetsPadding(WindowInsets.navigationBars)
+                        .drawBehind {
+                            // Thin futuristic neon divider at the top
+                            drawLine(
+                                color = BlueAccent.copy(alpha = 0.4f),
+                                start = androidx.compose.ui.geometry.Offset(0f, 0f),
+                                end = androidx.compose.ui.geometry.Offset(size.width, 0f),
+                                strokeWidth = 1.dp.toPx()
+                            )
+                        }
                 ) {
                     NavigationBarItem(
                         selected = (currentSection == "Video"),
                         onClick = { currentSection = "Video" },
-                        label = { Text("Video", fontSize = 11.sp) },
+                        label = { Text("Video", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
                         icon = {
                             Icon(
                                 imageVector = if (currentSection == "Video") Icons.Filled.Movie else Icons.Outlined.Movie,
@@ -658,18 +825,18 @@ fun MediaDashboardScreen(
                             )
                         },
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = Color(0xFFFF9800),
-                            selectedTextColor = Color(0xFFFF9800),
-                            indicatorColor = Color.Transparent,
-                            unselectedIconColor = Color.Gray,
-                            unselectedTextColor = Color.Gray
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
 
                     NavigationBarItem(
                         selected = (currentSection == "Audio"),
                         onClick = { currentSection = "Audio" },
-                        label = { Text("Audio", fontSize = 11.sp) },
+                        label = { Text("Audio", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
                         icon = {
                             Icon(
                                 imageVector = Icons.Default.MusicNote,
@@ -677,18 +844,18 @@ fun MediaDashboardScreen(
                             )
                         },
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = Color(0xFFFF9800),
-                            selectedTextColor = Color(0xFFFF9800),
-                            indicatorColor = Color.Transparent,
-                            unselectedIconColor = Color.Gray,
-                            unselectedTextColor = Color.Gray
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
 
                     NavigationBarItem(
                         selected = (currentSection == "Browse"),
                         onClick = { currentSection = "Browse" },
-                        label = { Text("Browse", fontSize = 11.sp) },
+                        label = { Text("Browse", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
                         icon = {
                             Icon(
                                 imageVector = Icons.Default.Folder,
@@ -696,18 +863,18 @@ fun MediaDashboardScreen(
                             )
                         },
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = Color(0xFFFF9800),
-                            selectedTextColor = Color(0xFFFF9800),
-                            indicatorColor = Color.Transparent,
-                            unselectedIconColor = Color.Gray,
-                            unselectedTextColor = Color.Gray
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
 
                     NavigationBarItem(
                         selected = (currentSection == "Playlists"),
                         onClick = { currentSection = "Playlists" },
-                        label = { Text("Playlists", fontSize = 11.sp) },
+                        label = { Text("Playlists", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
                         icon = {
                             Icon(
                                 imageVector = Icons.Default.QueueMusic,
@@ -715,18 +882,18 @@ fun MediaDashboardScreen(
                             )
                         },
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = Color(0xFFFF9800),
-                            selectedTextColor = Color(0xFFFF9800),
-                            indicatorColor = Color.Transparent,
-                            unselectedIconColor = Color.Gray,
-                            unselectedTextColor = Color.Gray
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
 
                     NavigationBarItem(
                         selected = (currentSection == "More"),
                         onClick = { currentSection = "More" },
-                        label = { Text("More", fontSize = 11.sp) },
+                        label = { Text("More", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
                         icon = {
                             Icon(
                                 imageVector = Icons.Default.MoreHoriz,
@@ -734,17 +901,17 @@ fun MediaDashboardScreen(
                             )
                         },
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = Color(0xFFFF9800),
-                            selectedTextColor = Color(0xFFFF9800),
-                            indicatorColor = Color.Transparent,
-                            unselectedIconColor = Color.Gray,
-                            unselectedTextColor = Color.Gray
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
                 }
             }
         },
-        containerColor = Color.Black,
+        containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier
     ) { innerPadding ->
         Box(
@@ -971,12 +1138,17 @@ fun MediaDashboardScreen(
                                                         )
                                                     }
                                                     Spacer(modifier = Modifier.width(8.dp))
-                                                    Icon(
-                                                        imageVector = if (isCollapsed) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
-                                                        contentDescription = if (isCollapsed) "Expand group" else "Collapse group",
-                                                        tint = Color.LightGray,
-                                                        modifier = Modifier.size(20.dp)
-                                                    )
+                                                    IconButton(
+                                                        onClick = { collapsedGroups[groupKey] = !isCollapsed },
+                                                        modifier = Modifier.size(36.dp).testTag("folder_expand_collapse_${groupKey}")
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = if (isCollapsed) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
+                                                            contentDescription = if (isCollapsed) "Expand folder" else "Collapse folder",
+                                                            tint = MaterialTheme.colorScheme.primary,
+                                                            modifier = Modifier.size(20.dp)
+                                                        )
+                                                    }
                                                     }
                                                 }
                                             }
@@ -1102,7 +1274,17 @@ fun MediaDashboardScreen(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clickable { viewModel.selectAudio(audio, filteredAudios) },
-                                        colors = CardDefaults.cardColors(containerColor = Color(0xFF141416))
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                                        shape = RoundedCornerShape(12.dp),
+                                        border = BorderStroke(
+                                            width = 1.dp,
+                                            brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                                                colors = listOf(
+                                                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
+                                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
+                                                )
+                                            )
+                                        )
                                     ) {
                                         Row(
                                             modifier = Modifier.padding(12.dp),
@@ -1113,15 +1295,15 @@ fun MediaDashboardScreen(
                                                     .size(48.dp)
                                                     .clip(RoundedCornerShape(8.dp))
                                                     .background(
-                                                        if (audio.isLossless) Color(0xFFFF9800).copy(alpha = 0.1f)
-                                                        else Color(0xFF1F1F22)
+                                                        if (audio.isLossless) Color(0xFF14B8A6).copy(alpha = 0.1f)
+                                                        else Color(0xFF1A1A1A)
                                                     ),
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 Icon(
                                                     imageVector = Icons.Default.MusicNote,
                                                     contentDescription = null,
-                                                    tint = if (audio.isLossless) Color(0xFFFF9800) else Color.Gray
+                                                    tint = if (audio.isLossless) Color(0xFF14B8A6) else Color(0xFF9CA3AF)
                                                 )
                                             }
 
@@ -1141,7 +1323,7 @@ fun MediaDashboardScreen(
                                                     Text(
                                                         text = audio.artist,
                                                         style = MaterialTheme.typography.bodySmall,
-                                                        color = Color.Gray,
+                                                        color = Color(0xFF9CA3AF),
                                                         maxLines = 1,
                                                         overflow = TextOverflow.Ellipsis
                                                     )
@@ -1149,7 +1331,7 @@ fun MediaDashboardScreen(
                                                     Text(
                                                         text = audio.format.uppercase(),
                                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                                        color = Color.Gray,
+                                                        color = Color(0xFF9CA3AF),
                                                         fontWeight = FontWeight.Bold
                                                     )
                                                     Spacer(modifier = Modifier.width(6.dp))
@@ -1157,10 +1339,10 @@ fun MediaDashboardScreen(
                                                         Text(
                                                             text = "Hi-Res Lossless",
                                                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
-                                                            color = Color(0xFFFFD700),
+                                                            color = Color(0xFF14B8A6),
                                                             fontWeight = FontWeight.Bold,
                                                             modifier = Modifier
-                                                                .background(Color(0xFF2D250D), RoundedCornerShape(4.dp))
+                                                                .background(Color(0xFF0F2D2A), RoundedCornerShape(4.dp))
                                                                 .padding(horizontal = 4.dp, vertical = 1.dp)
                                                         )
                                                     } else if (audio.isLossless) {
@@ -1170,7 +1352,7 @@ fun MediaDashboardScreen(
                                                             color = Color(0xFFBAC0C4),
                                                             fontWeight = FontWeight.Bold,
                                                             modifier = Modifier
-                                                                .background(Color(0xFF222528), RoundedCornerShape(4.dp))
+                                                                .background(Color(0xFF141A1D), RoundedCornerShape(4.dp))
                                                                 .padding(horizontal = 4.dp, vertical = 1.dp)
                                                         )
                                                     }
@@ -1234,17 +1416,17 @@ fun MediaDashboardScreen(
                             item {
                                 Card(
                                     modifier = Modifier.fillMaxWidth().clickable { folderPickerLauncher.launch(null) },
-                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E))
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF121212))
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(16.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Icon(Icons.Default.FolderOpen, contentDescription = null, tint = Color(0xFFFF9800), modifier = Modifier.size(32.dp))
+                                        Icon(Icons.Default.FolderOpen, contentDescription = null, tint = Color(0xFF14B8A6), modifier = Modifier.size(32.dp))
                                         Spacer(modifier = Modifier.width(16.dp))
                                         Column {
                                             Text("Import Directory", color = Color.White, fontWeight = FontWeight.Bold)
-                                            Text("Browse with system directory tool", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                                            Text("Browse with system directory tool", color = Color(0xFF9CA3AF), style = MaterialTheme.typography.bodySmall)
                                         }
                                     }
                                 }
@@ -1253,17 +1435,17 @@ fun MediaDashboardScreen(
                             item {
                                 Card(
                                     modifier = Modifier.fillMaxWidth().clickable { viewModel.scanLocalVideos() },
-                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E))
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF121212))
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(16.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Icon(Icons.Default.Refresh, contentDescription = null, tint = Color(0xFFFF9800), modifier = Modifier.size(32.dp))
+                                        Icon(Icons.Default.Refresh, contentDescription = null, tint = Color(0xFF14B8A6), modifier = Modifier.size(32.dp))
                                         Spacer(modifier = Modifier.width(16.dp))
                                         Column {
                                             Text("Quick Automatic Storage Rescan", color = Color.White, fontWeight = FontWeight.Bold)
-                                            Text("Scan media folders instantly", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                                            Text("Scan media folders instantly", color = Color(0xFF9CA3AF), style = MaterialTheme.typography.bodySmall)
                                         }
                                     }
                                 }
@@ -1272,45 +1454,493 @@ fun MediaDashboardScreen(
                     }
 
                     "Playlists" -> {
+                        var downloadUrl by remember { mutableStateOf("") }
+                        val downloaderPrefs = remember { context.getSharedPreferences("downloader_prefs", Context.MODE_PRIVATE) }
+                        var downloadLocationUri by remember { 
+                            mutableStateOf(downloaderPrefs.getString("preferred_location_uri", "") ?: "") 
+                        }
+                        var setAsPreferredLocation by remember { mutableStateOf(false) }
+                        var isCustomLocation by remember { mutableStateOf(downloadLocationUri.isNotEmpty()) }
+                        var expandedQuality by remember { mutableStateOf(false) }
+                        var selectedQuality by remember { mutableStateOf("1080p") }
+
+                        val qualityMap = remember {
+                            mapOf(
+                                "Best Available" to "best",
+                                "8K (4320p)" to "bestvideo[height<=4320]+bestaudio/best",
+                                "4K (2160p)" to "bestvideo[height<=2160]+bestaudio/best",
+                                "2K (1440p)" to "bestvideo[height<=1440]+bestaudio/best",
+                                "1080p 60fps" to "bestvideo[height<=1080][fps>=60]+bestaudio/best",
+                                "1080p" to "bestvideo[height<=1080]+bestaudio/best",
+                                "720p 60fps" to "bestvideo[height<=720][fps>=60]+bestaudio/best",
+                                "720p" to "bestvideo[height<=720]+bestaudio/best",
+                                "Audio Only" to "bestaudio"
+                            )
+                        }
+
+                        val downloadLocationLauncher = rememberLauncherForActivityResult(
+                            contract = ActivityResultContracts.OpenDocumentTree()
+                        ) { uri ->
+                            uri?.let {
+                                try {
+                                    val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                                    context.contentResolver.takePersistableUriPermission(it, takeFlags)
+                                } catch (e: Exception) { e.printStackTrace() }
+                                downloadLocationUri = it.toString()
+                                isCustomLocation = true
+                            }
+                        }
+
+                        val workInfos by WorkManager.getInstance(context)
+                            .getWorkInfosByTagFlow("ytdlp_download")
+                            .collectAsState(initial = emptyList())
+
+                        val activeWorkInfo = remember(workInfos) {
+                            workInfos.firstOrNull { !it.state.isFinished } ?: workInfos.firstOrNull()
+                        }
+
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(horizontal = 16.dp),
                             contentPadding = PaddingValues(top = 16.dp, bottom = 80.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             item {
-                                Text("Dynamic Categories", style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.Bold)
+                                Text(
+                                    "MHDXBILAL DOWNLOAD ENGINE", 
+                                    style = MaterialTheme.typography.titleMedium, 
+                                    color = Color(0xFF00F3FF), 
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.sp
+                                )
                             }
 
                             item {
                                 Card(
                                     modifier = Modifier.fillMaxWidth(),
-                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF141416))
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF0F0F11)),
+                                    border = BorderStroke(1.dp, Color(0xFF1F1F23))
                                 ) {
                                     Column(modifier = Modifier.padding(16.dp)) {
-                                        Text("★ Favorited Tracks", style = MaterialTheme.typography.bodyLarge, color = Color.White, fontWeight = FontWeight.Bold)
+                                        Text(
+                                            "Paste Media Stream / Video URL", 
+                                            style = MaterialTheme.typography.bodyMedium, 
+                                            color = Color.LightGray, 
+                                            fontWeight = FontWeight.SemiBold
+                                        )
                                         Spacer(modifier = Modifier.height(10.dp))
-                                        val favVideos = favoriteVideos
-                                        val favAudios = favoriteAudios
-                                        Text("Favorite Videos: ${favVideos.size}", color = Color.LightGray)
-                                        Text("Favorite Audio/Songs: ${favAudios.size}", color = Color.LightGray)
-                                    }
-                                }
-                            }
 
-                            item {
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF141416))
-                                ) {
-                                    Column(modifier = Modifier.padding(16.dp)) {
-                                        Text("⏱ Playback History / Recents", style = MaterialTheme.typography.bodyLarge, color = Color.White, fontWeight = FontWeight.Bold)
+                                        // Row containing text field and quality selector
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            OutlinedTextField(
+                                                value = downloadUrl,
+                                                onValueChange = { downloadUrl = it },
+                                                placeholder = { Text("Paste URL here...", color = Color.Gray) },
+                                                singleLine = true,
+                                                textStyle = androidx.compose.ui.text.TextStyle(color = Color.White),
+                                                colors = OutlinedTextFieldDefaults.colors(
+                                                    focusedBorderColor = Color(0xFF00F3FF),
+                                                    unfocusedBorderColor = Color(0xFF2E2E35),
+                                                    focusedContainerColor = Color(0x1500F3FF),
+                                                    unfocusedContainerColor = Color(0x0AFFFFFF)
+                                                ),
+                                                modifier = Modifier.weight(0.68f)
+                                            )
+
+                                            // Quality Select Dropdown
+                                            Box(
+                                                modifier = Modifier
+                                                    .weight(0.32f)
+                                                    .height(56.dp)
+                                                    .background(
+                                                        brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                                                            colors = listOf(Color(0xFF00E5FF), Color(0xFFBD00FF))
+                                                        ),
+                                                        shape = RoundedCornerShape(12.dp)
+                                                    )
+                                                    .clickable { expandedQuality = true }
+                                                    .padding(1.dp)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .background(Color(0xFF0F0F12), RoundedCornerShape(11.dp)),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.Center,
+                                                        modifier = Modifier.padding(horizontal = 8.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = selectedQuality,
+                                                            color = Color.White,
+                                                            fontSize = 13.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis,
+                                                            modifier = Modifier.weight(1f),
+                                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                                        )
+                                                        Icon(
+                                                            imageVector = Icons.Default.ArrowDropDown,
+                                                            contentDescription = "Quality Options",
+                                                            tint = Color(0xFF00F3FF),
+                                                            modifier = Modifier.size(18.dp)
+                                                        )
+                                                    }
+                                                }
+
+                                                DropdownMenu(
+                                                    expanded = expandedQuality,
+                                                    onDismissRequest = { expandedQuality = false },
+                                                    modifier = Modifier
+                                                        .background(Color(0xFF0F0F13))
+                                                        .border(1.dp, Color(0xFF2E2E35), RoundedCornerShape(8.dp))
+                                                ) {
+                                                    val qualities = listOf(
+                                                        "Best Available",
+                                                        "8K (4320p)",
+                                                        "4K (2160p)",
+                                                        "2K (1440p)",
+                                                        "1080p 60fps",
+                                                        "1080p",
+                                                        "720p 60fps",
+                                                        "720p",
+                                                        "Audio Only"
+                                                    )
+                                                    qualities.forEach { q ->
+                                                        DropdownMenuItem(
+                                                            text = {
+                                                                Text(
+                                                                    text = q,
+                                                                    color = if (selectedQuality == q) Color(0xFF00F3FF) else Color.LightGray,
+                                                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                                                    fontSize = 12.sp,
+                                                                    fontWeight = FontWeight.SemiBold
+                                                                )
+                                                            },
+                                                            onClick = {
+                                                                selectedQuality = q
+                                                                expandedQuality = false
+                                                            }
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(18.dp))
+
+                                        // Custom Pill Segment Storage & Switch Toggle Layout
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .weight(0.58f)
+                                                    .height(40.dp)
+                                                    .background(Color(0xFF09090B), RoundedCornerShape(20.dp))
+                                                    .border(1.dp, Color(0xFF1E1E24), RoundedCornerShape(20.dp))
+                                                    .padding(2.dp)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .fillMaxHeight()
+                                                        .background(
+                                                            brush = if (!isCustomLocation) {
+                                                                androidx.compose.ui.graphics.Brush.linearGradient(
+                                                                    colors = listOf(Color(0xFF00E5FF).copy(alpha = 0.15f), Color(0xFFBD00FF).copy(alpha = 0.15f))
+                                                                )
+                                                            } else {
+                                                                androidx.compose.ui.graphics.Brush.linearGradient(colors = listOf(Color.Transparent, Color.Transparent))
+                                                            },
+                                                            shape = RoundedCornerShape(18.dp)
+                                                        )
+                                                        .border(
+                                                            width = if (!isCustomLocation) 1.dp else 0.dp,
+                                                            brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                                                                colors = listOf(Color(0xFF00E5FF), Color(0xFFBD00FF))
+                                                            ),
+                                                            shape = RoundedCornerShape(18.dp)
+                                                        )
+                                                        .clickable {
+                                                            isCustomLocation = false
+                                                        },
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(
+                                                        "Internal Memory",
+                                                        color = if (!isCustomLocation) Color(0xFF00F3FF) else Color.Gray,
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        maxLines = 1
+                                                    )
+                                                }
+
+                                                Box(
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .fillMaxHeight()
+                                                        .background(
+                                                            brush = if (isCustomLocation) {
+                                                                androidx.compose.ui.graphics.Brush.linearGradient(
+                                                                    colors = listOf(Color(0xFF00E5FF).copy(alpha = 0.15f), Color(0xFFBD00FF).copy(alpha = 0.15f))
+                                                                )
+                                                            } else {
+                                                                androidx.compose.ui.graphics.Brush.linearGradient(colors = listOf(Color.Transparent, Color.Transparent))
+                                                            },
+                                                            shape = RoundedCornerShape(18.dp)
+                                                        )
+                                                        .border(
+                                                            width = if (isCustomLocation) 1.dp else 0.dp,
+                                                            brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                                                                colors = listOf(Color(0xFF00E5FF), Color(0xFFBD00FF))
+                                                            ),
+                                                            shape = RoundedCornerShape(18.dp)
+                                                        )
+                                                        .clickable {
+                                                            isCustomLocation = true
+                                                            if (downloadLocationUri.isEmpty()) {
+                                                                downloadLocationLauncher.launch(null)
+                                                            }
+                                                        },
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(
+                                                        "Choose Custom...",
+                                                        color = if (isCustomLocation) Color(0xFF00F3FF) else Color.Gray,
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        maxLines = 1
+                                                    )
+                                                }
+                                            }
+
+                                            Spacer(modifier = Modifier.width(8.dp))
+
+                                            Row(
+                                                modifier = Modifier.weight(0.42f),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.End
+                                            ) {
+                                                CyberSwitch(
+                                                    checked = setAsPreferredLocation,
+                                                    onCheckedChange = { setAsPreferredLocation = it }
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    "Set as preferred location",
+                                                    color = Color.LightGray,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    maxLines = 2
+                                                )
+                                            }
+                                        }
+
+                                        if (isCustomLocation && downloadLocationUri.isNotEmpty()) {
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            val cleanUriDisplay = try {
+                                                android.net.Uri.parse(downloadLocationUri).lastPathSegment ?: downloadLocationUri
+                                            } catch(e: Exception) { downloadLocationUri }
+                                            Text(
+                                                "Target URI: $cleanUriDisplay",
+                                                color = Color(0xFF00FFCC),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.height(24.dp))
+
+                                        // Real progress info
+                                        var progressVal = 0
+                                        var speedVal = "0 B/s"
+                                        var statusTxt = "Engine Standby"
+                                        val activeState = activeWorkInfo != null && !activeWorkInfo.state.isFinished
+
+                                        activeWorkInfo?.let { work ->
+                                            progressVal = work.progress.getInt(DownloadWorker.KEY_PROGRESS, 0)
+                                            speedVal = work.progress.getString(DownloadWorker.KEY_SPEED) ?: "Calculating"
+                                            statusTxt = work.progress.getString(DownloadWorker.KEY_STATUS_TEXT) ?: "Initiating connection..."
+                                        }
+
+                                        // Monospace percentage / speed display panel
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                                            horizontalArrangement = Arrangement.Center,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = if (activeState) "$progressVal%  |  $speedVal" else if (activeWorkInfo != null && activeWorkInfo.state == androidx.work.WorkInfo.State.SUCCEEDED) "100% COMPLETE" else "STANDBY READY",
+                                                color = if (activeState) Color(0xFF00F3FF) else Color.LightGray,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 15.sp,
+                                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                                letterSpacing = 1.sp
+                                            )
+                                        }
+
                                         Spacer(modifier = Modifier.height(10.dp))
-                                        val recVideos = recentVideos
-                                        val recAudios = recentAudios
-                                        Text("Recently Played Videos: ${recVideos.size}", color = Color.LightGray)
-                                        Text("Recently Played Audio: ${recAudios.size}", color = Color.LightGray)
+
+                                        // Breathtaking Slanted Striped Gradient Progress Bar
+                                        androidx.compose.foundation.Canvas(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(24.dp)
+                                                .border(BorderStroke(1.2.dp, Color(0xFF2E2E35)), RoundedCornerShape(12.dp))
+                                                .clip(RoundedCornerShape(12.dp))
+                                        ) {
+                                            val barWidth = size.width
+                                            val barHeight = size.height
+                                            
+                                            // 1. Dark background
+                                            drawRoundRect(
+                                                color = Color(0xFF0C0C0E),
+                                                size = size
+                                            )
+                                            
+                                            // 2. Active fill width
+                                            val currentProgress = if (activeState) progressVal else if (activeWorkInfo != null && activeWorkInfo.state == androidx.work.WorkInfo.State.SUCCEEDED) 100 else 0
+                                            val fillWidth = barWidth * (currentProgress / 100f)
+                                            
+                                            if (fillWidth > 0f) {
+                                                val clipPath = androidx.compose.ui.graphics.Path().apply {
+                                                    addRoundRect(
+                                                        androidx.compose.ui.geometry.RoundRect(
+                                                            rect = androidx.compose.ui.geometry.Rect(0f, 0f, fillWidth, barHeight),
+                                                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(barHeight / 2)
+                                                        )
+                                                    )
+                                                }
+                                                
+                                                drawContext.canvas.save()
+                                                drawContext.canvas.clipPath(clipPath)
+                                                
+                                                // Draw linear gradient cyan-to-magenta bar
+                                                val barGradient = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                                    colors = listOf(Color(0xFF00F3FF), Color(0xFFFF007F)),
+                                                    startX = 0f,
+                                                    endX = barWidth
+                                                )
+                                                
+                                                drawRect(
+                                                    brush = barGradient,
+                                                    size = androidx.compose.ui.geometry.Size(fillWidth, barHeight)
+                                                )
+                                                
+                                                // Draw retro slanted stripes
+                                                val stripeWidth = 6f
+                                                val stripeGap = 16f
+                                                var xOffset = -barHeight
+                                                while (xOffset < fillWidth + barHeight) {
+                                                    val stripePath = androidx.compose.ui.graphics.Path().apply {
+                                                        moveTo(xOffset, barHeight)
+                                                        lineTo(xOffset + stripeWidth, barHeight)
+                                                        lineTo(xOffset + stripeWidth + 10f, 0f)
+                                                        lineTo(xOffset + 10f, 0f)
+                                                        close()
+                                                    }
+                                                    drawPath(
+                                                        path = stripePath,
+                                                        color = Color(0xFF000000).copy(alpha = 0.3f)
+                                                    )
+                                                    xOffset += stripeWidth + stripeGap
+                                                }
+                                                drawContext.canvas.restore()
+                                            }
+                                        }
+
+                                        if (activeState || (statusTxt != "Engine Standby" && statusTxt.isNotEmpty())) {
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text(
+                                                text = statusTxt,
+                                                color = Color.Gray,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.fillMaxWidth(),
+                                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.height(24.dp))
+
+                                        // DOWNLOAD glowing trigger button
+                                        val isReady = downloadUrl.trim().isNotEmpty() && (!isCustomLocation || downloadLocationUri.isNotEmpty())
+
+                                        Button(
+                                            onClick = {
+                                                if (isReady && !activeState) {
+                                                    if (setAsPreferredLocation && isCustomLocation) {
+                                                        downloaderPrefs.edit()
+                                                            .putString("preferred_location_uri", downloadLocationUri)
+                                                            .apply()
+                                                    }
+                                                    
+                                                    val formatArg = qualityMap[selectedQuality] ?: "best"
+                                                    
+                                                    val request = OneTimeWorkRequestBuilder<DownloadWorker>()
+                                                        .setInputData(
+                                                            workDataOf(
+                                                                DownloadWorker.KEY_URL to downloadUrl.trim(),
+                                                                DownloadWorker.KEY_DESTINATION_URI to if (isCustomLocation) downloadLocationUri else "",
+                                                                DownloadWorker.KEY_FORMAT to formatArg
+                                                            )
+                                                        )
+                                                        .addTag("ytdlp_download")
+                                                        .build()
+                                                    WorkManager.getInstance(context).enqueue(request)
+                                                }
+                                            },
+                                            enabled = isReady && !activeState,
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = Color.Transparent,
+                                                disabledContainerColor = Color.Transparent
+                                            ),
+                                            border = BorderStroke(
+                                                width = 1.5.dp,
+                                                color = if (isReady && !activeState) Color(0xFF00F3FF) else Color(0xFF1E1E24)
+                                            ),
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(52.dp)
+                                                .shadow(
+                                                    elevation = if (isReady && !activeState) 8.dp else 0.dp,
+                                                    spotColor = Color(0xFF00F3FF),
+                                                    ambientColor = Color(0xFF00F3FF)
+                                                )
+                                        ) {
+                                            Row(
+                                                horizontalArrangement = Arrangement.Center,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    imageVector = if (activeState) Icons.Default.HourglassEmpty else Icons.Default.Download,
+                                                    contentDescription = "Trigger Download",
+                                                    tint = if (isReady && !activeState) Color(0xFF00F3FF) else Color.DarkGray,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = if (activeState) "DOWNLOADING..." else "DOWNLOAD",
+                                                    color = if (isReady && !activeState) Color.White else Color.Gray,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 13.sp,
+                                                    letterSpacing = 1.sp
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -1343,13 +1973,13 @@ fun MediaDashboardScreen(
                             // Card 1: Media Library (Matching user image description)
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF141416))
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF121212))
                             ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
                                     Text(
                                         text = "Media Library",
                                         style = MaterialTheme.typography.titleMedium,
-                                        color = Color(0xFFFF9800),
+                                        color = Color(0xFF3B82F6),
                                         fontWeight = FontWeight.Bold
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
@@ -1362,16 +1992,16 @@ fun MediaDashboardScreen(
                                             .padding(vertical = 12.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Icon(Icons.Default.FolderOpen, contentDescription = null, tint = Color.LightGray)
+                                        Icon(Icons.Default.FolderOpen, contentDescription = null, tint = Color(0xFF9CA3AF))
                                         Spacer(modifier = Modifier.width(16.dp))
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text("Media library folders", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                                            Text("Select directories to include in the media library", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                                            Text("Select directories to include in the media library", color = Color(0xFF9CA3AF), style = MaterialTheme.typography.bodySmall)
                                         }
-                                        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.Gray)
+                                        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFF9CA3AF))
                                     }
 
-                                    HorizontalDivider(color = Color(0xFF222225))
+                                    HorizontalDivider(color = Color(0xFF262626))
 
                                     // Auto rescan
                                     Row(
@@ -1380,11 +2010,11 @@ fun MediaDashboardScreen(
                                             .padding(vertical = 12.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Icon(Icons.Default.YoutubeSearchedFor, contentDescription = null, tint = Color.LightGray)
+                                        Icon(Icons.Default.YoutubeSearchedFor, contentDescription = null, tint = Color(0xFF9CA3AF))
                                         Spacer(modifier = Modifier.width(16.dp))
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text("Auto rescan", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                                            Text("Automatically scan device for new or deleted media at application startup", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                                            Text("Automatically scan device for new or deleted media at application startup", color = Color(0xFF9CA3AF), style = MaterialTheme.typography.bodySmall)
                                         }
                                         Switch(
                                             checked = autoRescanVal,
@@ -1393,8 +2023,8 @@ fun MediaDashboardScreen(
                                                 PlayerSettings.setAutoRescan(context, it)
                                             },
                                             colors = SwitchDefaults.colors(
-                                                checkedThumbColor = Color(0xFFFF9800),
-                                                checkedTrackColor = Color(0xFFFF9800).copy(alpha = 0.5f)
+                                                checkedThumbColor = Color(0xFF3B82F6),
+                                                checkedTrackColor = Color(0xFF3B82F6).copy(alpha = 0.5f)
                                             )
                                         )
                                     }
@@ -1404,13 +2034,13 @@ fun MediaDashboardScreen(
                             // Card 2: Playback Options (Seamless transition)
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF141416))
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF121212))
                             ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
                                     Text(
                                         text = "Playback settings",
                                         style = MaterialTheme.typography.titleMedium,
-                                        color = Color.LightGray,
+                                        color = Color(0xFF9CA3AF),
                                         fontWeight = FontWeight.Bold
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
@@ -1421,11 +2051,11 @@ fun MediaDashboardScreen(
                                             .padding(vertical = 12.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Icon(Icons.Default.Loop, contentDescription = null, tint = Color.LightGray)
+                                        Icon(Icons.Default.Loop, contentDescription = null, tint = Color(0xFF9CA3AF))
                                         Spacer(modifier = Modifier.width(16.dp))
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text("Seamless transitions", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                                            Text("Enable seamless gapless transitions between track playback structures", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                                            Text("Enable seamless gapless transitions between track playback structures", color = Color(0xFF9CA3AF), style = MaterialTheme.typography.bodySmall)
                                         }
                                         Switch(
                                             checked = seamlessTransitionsVal,
@@ -1434,8 +2064,8 @@ fun MediaDashboardScreen(
                                                 PlayerSettings.setSeamlessTransitions(context, it)
                                             },
                                             colors = SwitchDefaults.colors(
-                                                checkedThumbColor = Color(0xFFFF9800),
-                                                checkedTrackColor = Color(0xFFFF9800).copy(alpha = 0.5f)
+                                                checkedThumbColor = Color(0xFF3B82F6),
+                                                checkedTrackColor = Color(0xFF3B82F6).copy(alpha = 0.5f)
                                             )
                                         )
                                     }
@@ -1445,7 +2075,7 @@ fun MediaDashboardScreen(
                             // Card 3: Internal Sound Equalizer (Graphic equalizers)
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF141416))
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF121212))
                             ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
                                     Row(
@@ -1455,7 +2085,7 @@ fun MediaDashboardScreen(
                                     ) {
                                         Column {
                                             Text("Internal Sound Equalizer", style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.Bold)
-                                            Text("Fine-tune acoustic frequency details", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                                            Text("Fine-tune acoustic frequency details", style = MaterialTheme.typography.bodySmall, color = Color(0xFF9CA3AF))
                                         }
                                         Switch(
                                             checked = isEqEnabled,
@@ -1465,8 +2095,8 @@ fun MediaDashboardScreen(
                                                 eqEnabled = it
                                             },
                                             colors = SwitchDefaults.colors(
-                                                checkedThumbColor = Color(0xFFFF9800),
-                                                checkedTrackColor = Color(0xFFFF9800).copy(alpha = 0.5f)
+                                                checkedThumbColor = Color(0xFF3B82F6),
+                                                checkedTrackColor = Color(0xFF3B82F6).copy(alpha = 0.5f)
                                             )
                                         )
                                     }
@@ -1509,7 +2139,7 @@ fun MediaDashboardScreen(
                                                     }
                                                 },
                                                 colors = ButtonDefaults.buttonColors(
-                                                    containerColor = if (isCurrentPreset) Color(0xFFFF9800) else Color(0xFF1E1E22)
+                                                    containerColor = if (isCurrentPreset) Color(0xFF3B82F6) else Color(0xFF1A1A1A)
                                                 ),
                                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                                                 modifier = Modifier.height(32.dp),
@@ -1534,7 +2164,8 @@ fun MediaDashboardScreen(
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .background(Color(0xFF0C0C0E), RoundedCornerShape(12.dp))
+                                            .border(1.dp, Color(0xFF262626), RoundedCornerShape(12.dp))
+                                            .background(Color(0xFF000000), RoundedCornerShape(12.dp))
                                             .padding(vertical = 12.dp, horizontal = 8.dp),
                                         horizontalArrangement = Arrangement.SpaceEvenly
                                     ) {
@@ -1565,27 +2196,29 @@ fun MediaDashboardScreen(
                                     Text("Acoustic Special Enhancements", style = MaterialTheme.typography.bodyLarge, color = Color.White, fontWeight = FontWeight.Bold)
                                     Spacer(modifier = Modifier.height(16.dp))
 
-                                    Text("Bass Boost Depth: ${String.format("%.0f", baseBoostVal)}%", color = Color.LightGray, style = MaterialTheme.typography.bodySmall)
+                                    Text("Bass Boost Depth: ${String.format("%.0f", baseBoostVal)}%", color = Color(0xFF9CA3AF), style = MaterialTheme.typography.bodySmall)
                                     Slider(
                                         value = baseBoostVal,
                                         onValueChange = { if (isEqEnabled) baseBoostVal = it },
                                         valueRange = 0f..100f,
                                         colors = SliderDefaults.colors(
-                                            thumbColor = Color(0xFFFF9800),
-                                            activeTrackColor = Color(0xFFFF9800)
+                                            thumbColor = Color(0xFF3B82F6),
+                                            activeTrackColor = Color(0xFF3B82F6),
+                                            inactiveTrackColor = Color(0xFF262626)
                                         )
                                     )
 
                                     Spacer(modifier = Modifier.height(8.dp))
 
-                                    Text("Virtualizer Depth: ${String.format("%.0f", surroundDepthVal)}%", color = Color.LightGray, style = MaterialTheme.typography.bodySmall)
+                                    Text("Virtualizer Depth: ${String.format("%.0f", surroundDepthVal)}%", color = Color(0xFF9CA3AF), style = MaterialTheme.typography.bodySmall)
                                     Slider(
                                         value = surroundDepthVal,
                                         onValueChange = { if (isEqEnabled) surroundDepthVal = it },
                                         valueRange = 0f..100f,
                                         colors = SliderDefaults.colors(
-                                            thumbColor = Color(0xFFFF9800),
-                                            activeTrackColor = Color(0xFFFF9800)
+                                            thumbColor = Color(0xFF3B82F6),
+                                            activeTrackColor = Color(0xFF3B82F6),
+                                            inactiveTrackColor = Color(0xFF262626)
                                         )
                                     )
                                 }
@@ -1690,15 +2323,33 @@ fun AudioPlayerSheet(
     onDismiss: () -> Unit,
     viewModel: VideoPlayerViewModel
 ) {
+    val primaryColor = MaterialTheme.colorScheme.primary
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF101012),
-        dragHandle = { BottomSheetDefaults.DragHandle(color = Color.DarkGray) }
+        containerColor = MaterialTheme.colorScheme.background,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = MaterialTheme.colorScheme.outlineVariant) }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
+                .drawBehind {
+                    // Heavily blurred dynamic artwork representation overlay (opacity 12%)
+                    val mainColor = if (audio.isLossless) Color(0xFF14B8A6) else primaryColor
+                    val secondColor = if (audio.isLossless) primaryColor else Color(0xFF14B8A6)
+                    
+                    val brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                        colors = listOf(
+                            mainColor.copy(alpha = 0.14f),
+                            secondColor.copy(alpha = 0.04f),
+                            Color.Transparent
+                        ),
+                        center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 3f),
+                        radius = size.width * 0.9f
+                    )
+                    drawRect(brush = brush)
+                }
                 .padding(horizontal = 24.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -1707,10 +2358,10 @@ fun AudioPlayerSheet(
                 modifier = Modifier
                     .size(200.dp)
                     .clip(RoundedCornerShape(100.dp))
-                    .background(Color(0xFF161618))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
                     .drawBehind {
                         drawCircle(
-                            color = if (isAudioPlaying) Color(0xFFFF9800).copy(alpha = 0.08f) else Color.Transparent,
+                            color = if (isAudioPlaying) primaryColor.copy(alpha = 0.12f) else Color.Transparent,
                             radius = size.width / 2 + 16.dp.toPx()
                         )
                     },
@@ -1721,22 +2372,22 @@ fun AudioPlayerSheet(
                     modifier = Modifier
                         .size(170.dp)
                         .clip(RoundedCornerShape(85.dp))
-                        .background(Color(0xFF0C0C0D)),
+                        .background(Color(0xFF0A0A0A)),
                     contentAlignment = Alignment.Center
                 ) {
                     // Center label
                     Surface(
                         modifier = Modifier
                             .size(70.dp),
-                        color = if (audio.isLossless) Color(0xFFFF9800).copy(alpha = 0.15f) else Color(0xFF28282D),
+                        color = Color(0xFF1A1A1A),
                         shape = RoundedCornerShape(35.dp),
-                        border = BorderStroke(1.dp, Color(0xFFFF9800).copy(alpha = 0.4f))
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = Icons.Default.MusicNote,
                                 contentDescription = null,
-                                tint = if (audio.isLossless) Color(0xFFFF9800) else Color.White,
+                                tint = if (audio.isLossless) Color(0xFF14B8A6) else MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(36.dp)
                             )
                         }
@@ -1780,10 +2431,10 @@ fun AudioPlayerSheet(
                     Text(
                         text = "Hi-Res Lossless",
                         style = MaterialTheme.typography.labelMedium,
-                        color = Color(0xFFFFD700),
+                        color = Color(0xFF14B8A6),
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier
-                            .background(Color(0xFF2D250D), RoundedCornerShape(6.dp))
+                            .background(Color(0xFF0F2D2A), RoundedCornerShape(6.dp))
                             .padding(horizontal = 10.dp, vertical = 4.dp)
                     )
                 } else if (audio.isLossless) {
@@ -1793,7 +2444,7 @@ fun AudioPlayerSheet(
                         color = Color(0xFFBAC0C4),
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier
-                            .background(Color(0xFF222528), RoundedCornerShape(6.dp))
+                            .background(Color(0xFF141A1D), RoundedCornerShape(6.dp))
                             .padding(horizontal = 10.dp, vertical = 4.dp)
                     )
                 } else {
@@ -1802,7 +2453,7 @@ fun AudioPlayerSheet(
                         style = MaterialTheme.typography.labelMedium,
                         color = Color.Gray,
                         modifier = Modifier
-                            .background(Color(0xFF1C1C1E), RoundedCornerShape(6.dp))
+                            .background(Color(0xFF1A1A1A), RoundedCornerShape(6.dp))
                             .padding(horizontal = 10.dp, vertical = 4.dp)
                     )
                 }
@@ -1815,7 +2466,7 @@ fun AudioPlayerSheet(
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                     color = Color.White,
                     modifier = Modifier
-                        .background(Color(0xFFFF9800).copy(alpha = 0.2f), RoundedCornerShape(6.dp))
+                        .background(Color(0xFF3B82F6).copy(alpha = 0.2f), RoundedCornerShape(6.dp))
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 )
             }
@@ -1873,7 +2524,7 @@ fun AudioPlayerSheet(
                     },
                     modifier = Modifier.size(64.dp),
                     shape = RoundedCornerShape(32.dp),
-                    color = Color(0xFFFF9800)
+                    color = Color(0xFF3B82F6)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
@@ -2096,8 +2747,17 @@ fun VideoItemRow(
     val haptic = LocalHapticFeedback.current
 
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF101012)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                colors = listOf(
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.05f)
+                )
+            )
+        ),
         modifier = modifier
             .fillMaxWidth()
             .tilt3DInteractive(interactionSource)
@@ -2139,28 +2799,17 @@ fun VideoItemRow(
                         }
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        if (!video.thumbnailPath.isNullOrBlank()) {
-                            coil.compose.AsyncImage(
-                                model = video.thumbnailPath,
-                                contentDescription = "Video Thumbnail",
-                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
+                        val modelSrc = if (!video.thumbnailPath.isNullOrBlank()) {
+                            video.thumbnailPath
                         } else {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .drawBehind {
-                                        val brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                                            colors = listOf(
-                                                Color.White.copy(alpha = 0.08f),
-                                                Color.Transparent
-                                            )
-                                        )
-                                        drawRect(brush = brush)
-                                    }
-                            )
+                            video.path ?: video.uriString
                         }
+                        coil.compose.AsyncImage(
+                            model = modelSrc,
+                            contentDescription = "Video Thumbnail",
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
 
                         Icon(
                             imageVector = Icons.Default.PlayCircle,
@@ -2718,8 +3367,17 @@ fun VideoItemGrid(
     val haptic = LocalHapticFeedback.current
 
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF101012)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                colors = listOf(
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.05f)
+                )
+            )
+        ),
         modifier = modifier
             .fillMaxWidth()
             .tilt3DInteractive(interactionSource)
@@ -2756,28 +3414,17 @@ fun VideoItemGrid(
                     }
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    if (!video.thumbnailPath.isNullOrBlank()) {
-                        coil.compose.AsyncImage(
-                            model = video.thumbnailPath,
-                            contentDescription = "Video Thumbnail",
-                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
+                    val modelSrc = if (!video.thumbnailPath.isNullOrBlank()) {
+                        video.thumbnailPath
                     } else {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .drawBehind {
-                                    val brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                                        colors = listOf(
-                                            Color.White.copy(alpha = 0.08f),
-                                            Color.Transparent
-                                        )
-                                    )
-                                    drawRect(brush = brush)
-                                }
-                        )
+                        video.path ?: video.uriString
                     }
+                    coil.compose.AsyncImage(
+                        model = modelSrc,
+                        contentDescription = "Video Thumbnail",
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
 
                     Icon(
                         imageVector = Icons.Default.PlayCircle,
@@ -3828,9 +4475,9 @@ fun AudioSeekControls(
         },
         valueRange = 0f..audioDuration.toFloat().coerceAtLeast(1f),
         colors = SliderDefaults.colors(
-            thumbColor = Color(0xFFFF9800),
-            activeTrackColor = Color(0xFFFF9800),
-            inactiveTrackColor = Color(0xFF2E2E32)
+            thumbColor = Color(0xFF3B82F6),
+            activeTrackColor = Color(0xFF3B82F6),
+            inactiveTrackColor = Color(0xFF262626)
         ),
         modifier = Modifier.fillMaxWidth()
     )
@@ -3853,6 +4500,58 @@ fun AudioSeekControls(
             text = String.format("%02d:%02d", totalSecs / 60, totalSecs % 60),
             style = MaterialTheme.typography.bodySmall,
             color = Color.Gray
+        )
+    }
+}
+
+@Composable
+fun CyberSwitch(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    val bias by androidx.compose.animation.core.animateFloatAsState(targetValue = if (checked) 1f else -1f)
+    val alignment = remember(bias) { androidx.compose.ui.BiasAlignment(horizontalBias = bias, verticalBias = 0f) }
+    
+    Box(
+        modifier = Modifier
+            .width(52.dp)
+            .height(26.dp)
+            .background(
+                color = if (checked) Color(0xFF00F3FF).copy(alpha = 0.15f) else Color(0xFF141416),
+                shape = RoundedCornerShape(13.dp)
+            )
+            .border(
+                border = BorderStroke(
+                    width = 1.dp,
+                    color = if (checked) Color(0xFF00F3FF) else Color(0xFF2E2E35)
+                ),
+                shape = RoundedCornerShape(13.dp)
+            )
+            .clickable { onCheckedChange(!checked) }
+            .padding(2.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = if (checked) Arrangement.Start else Arrangement.End
+        ) {
+            Text(
+                text = if (checked) "ON" else "OFF",
+                color = if (checked) Color(0xFF00F3FF) else Color.Gray,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+            )
+        }
+        Box(
+            modifier = Modifier
+                .align(alignment)
+                .size(20.dp)
+                .background(
+                    color = if (checked) Color(0xFF00F3FF) else Color.Gray,
+                    shape = RoundedCornerShape(10.dp)
+                )
         )
     }
 }

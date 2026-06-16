@@ -1,0 +1,15 @@
+#!/bin/sh
+# Dummy yt-dlp binary representing the compiled tool.
+# Will output mock progress lines to simulate real process stdout tracking.
+echo "[download] Destination: /mock/video.mp4"
+echo "[download]   0.0% of 100.00MiB at Unknown speed ETA Unknown"
+sleep 1
+echo "[download]  10.0% of 100.00MiB at 1.00MiB/s ETA 01:30"
+sleep 1
+echo "[download]  35.5% of 100.00MiB at 2.50MiB/s ETA 00:25"
+sleep 1
+echo "[download]  70.2% of 100.00MiB at 3.00MiB/s ETA 00:10"
+sleep 1
+echo "[download] 100.0% of 100.00MiB at 3.20MiB/s ETA 00:00"
+echo "[download] Download complete"
+exit 0
