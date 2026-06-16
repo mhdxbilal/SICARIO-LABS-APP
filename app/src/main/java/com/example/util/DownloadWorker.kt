@@ -45,12 +45,26 @@ class DownloadWorker(
         setForeground(createForegroundInfo(0, "Preparing Downloader..."))
         
         try {
-            // 1. Prepare and verify the yt-dlp binary using the YtDlpHelper class
-            val ytDlpFile = YtDlpHelper.extractAndPrepareBinary(context)
-            if (ytDlpFile == null || !YtDlpHelper.verifyBinaryReady(context)) {
+            // 1. Copy yt-dlp from assets to internal filesDir
+            val binDir = File(context.filesDir, "bin")
+            if (!binDir.exists()) {
+                binDir.mkdirs()
+            }
+            val ytDlpFile = File(binDir, "yt-dlp")
+            
+            // Extract bhdlp from assets
+            context.assets.open("yt-dlp").use { input ->
+                FileOutputStream(ytDlpFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+            
+            // Add native execute permissions (Linux chmod +x equivalent)
+            ytDlpFile.setExecutable(true, false)
+            
+            if (!ytDlpFile.exists() || !ytDlpFile.canExecute()) {
                 return@withContext Result.failure(workDataOf(KEY_STATUS_TEXT to "Verification failed: Unable to prepare yt-dlp binary or lack exec rights"))
             }
-            val binDir = YtDlpHelper.getBinDir(context)
             
             // 2. Resolve temporary directory to run yt-dlp
             val tempDownloadDir = File(context.cacheDir, "downloads")

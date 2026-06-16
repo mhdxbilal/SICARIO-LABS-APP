@@ -21,9 +21,21 @@ class DownloadManager(private val context: Context) {
      * and sets native execution permissions (chmod +x equivalent).
      */
     suspend fun copyBinaryFromAssets(): File = withContext(Dispatchers.IO) {
-        val file = YtDlpHelper.extractAndPrepareBinary(context)
-            ?: throw IllegalStateException("Could not extract and prepare yt-dlp binary.")
-        file
+        val binDir = File(context.filesDir, "bin")
+        if (!binDir.exists()) {
+            binDir.mkdirs()
+        }
+        val ytDlpFile = File(binDir, "yt-dlp")
+        
+        context.assets.open("yt-dlp").use { input ->
+            FileOutputStream(ytDlpFile).use { output ->
+                input.copyTo(output)
+            }
+        }
+        
+        // JVM programmatic set executable permission (chmod +x)
+        ytDlpFile.setExecutable(true, false)
+        ytDlpFile
     }
 
     /**
