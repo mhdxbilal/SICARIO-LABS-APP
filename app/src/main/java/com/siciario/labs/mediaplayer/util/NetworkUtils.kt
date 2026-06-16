@@ -2,6 +2,7 @@ package com.siciario.labs.mediaplayer.util
 
 import android.content.Context
 import android.net.ConnectivityManager
+import com.sicario.labs.mediaplayer.BuildConfig
 
 /**
  * Network Utils - Ensures offline-only operation
