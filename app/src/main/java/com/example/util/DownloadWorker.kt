@@ -46,168 +46,88 @@ class DownloadWorker(
         val isAudioOnly = qualityArg == "audio"
         val vQuality = if (isAudioOnly) "max" else qualityArg
         
-        setForeground(createForegroundInfo(0, "Initiating Secure Connection..."))
+        setForeground(createForegroundInfo(0, "Initializing God-Tier Downloader..."))
         
         try {
-            // "Extraction" / Resolution Phase
-            // For a complete native multimedia downloader, we would extract direct stream URLs here.
-            // If the URL is already a direct media link, we download it. 
-            // In a real extensive app, we would add the NewPipe Extractor network interceptors here.
-            
-            // For this implementation, we attempt a direct HTTP fetch. If it's a YouTube link, 
-            // downloading the raw HTML won't yield a video, but we'll simulate the robust downloader engine UI.
-            
-            var targetUrl = inputUrl
-            if (inputUrl.contains("youtu") || inputUrl.contains("tiktok") || inputUrl.contains("instagram") || inputUrl.contains("twitter") || inputUrl.contains("x.com")) {
-                setProgress(workDataOf(KEY_STATUS_TEXT to "Resolving stream..."))
-                val apis = listOf(
-                    "https://co.wuk.sh/api/json",
-                    "https://api.cobalt.tools/api/json",
-                    "https://cobalt.q-n.space/api/json",
-                    "https://dl.khub.my.id/api/json"
-                )
-                
-                var resolvedUrl: String? = null
-                for (api in apis) {
-                    try {
-                        val apiUrl = URL(api)
-                        val apiConnection = apiUrl.openConnection() as HttpURLConnection
-                        apiConnection.requestMethod = "POST"
-                        apiConnection.setRequestProperty("Accept", "application/json")
-                        apiConnection.setRequestProperty("Content-Type", "application/json")
-                        apiConnection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-                        apiConnection.connectTimeout = 7000
-                        apiConnection.readTimeout = 7000
-                        apiConnection.doOutput = true
-                        
-                        val payload = org.json.JSONObject().apply {
-                            put("url", inputUrl)
-                            put("vQuality", vQuality)
-                            if (isAudioOnly) {
-                                put("isAudioOnly", true)
-                            }
-                        }
-                        
-                        apiConnection.outputStream.use { os ->
-                            val payloadBytes = payload.toString().toByteArray(Charsets.UTF_8)
-                            os.write(payloadBytes, 0, payloadBytes.size)
-                        }
-                        
-                        if (apiConnection.responseCode in 200..299) {
-                            val responseBody = apiConnection.inputStream.bufferedReader().use { it.readText() }
-                            val json = org.json.JSONObject(responseBody)
-                            if (json.has("url")) {
-                                resolvedUrl = json.getString("url")
-                                break
-                            } else if (json.optString("status") == "stream") {
-                                resolvedUrl = json.getString("url")
-                                break
-                            } else if (json.optString("status") == "redirect") {
-                                resolvedUrl = json.getString("url")
-                                break
-                            }
-                        }
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
-                }
-                
-                if (resolvedUrl != null) {
-                    targetUrl = resolvedUrl
-                } else if (inputUrl.contains("youtu") || inputUrl.contains("tiktok")) {
-                    return@withContext Result.failure(workDataOf(KEY_STATUS_TEXT to "Extraction failed: No stream resolved"))
-                }
-            }
-
-            val url = URL(targetUrl)
-            var connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "GET"
-            connection.connectTimeout = 15000
-            connection.readTimeout = 15000
-            connection.instanceFollowRedirects = true
-            
-            var responseCode = connection.responseCode
-            // Handle redirects natively
-            while (responseCode == HttpURLConnection.HTTP_MOVED_PERM || 
-                   responseCode == HttpURLConnection.HTTP_MOVED_TEMP ||
-                   responseCode == HttpURLConnection.HTTP_SEE_OTHER) {
-                val newUrl = connection.getHeaderField("Location")
-                connection = URL(newUrl).openConnection() as HttpURLConnection
-                responseCode = connection.responseCode
-            }
-            
-            if (responseCode !in 200..299) {
-                 return@withContext Result.failure(workDataOf(KEY_STATUS_TEXT to "Server connection failed: $responseCode"))
-            }
-            
-            val totalBytes = connection.contentLength.toLong()
             val tempDownloadDir = File(context.cacheDir, "downloads")
             if (!tempDownloadDir.exists()) {
                 tempDownloadDir.mkdirs()
             }
             
             val tempFilePrefix = "media_" + System.currentTimeMillis()
-            val ext = if (isAudioOnly) "mp3" else "mp4"
-            val mimeType = if (isAudioOnly) "audio/mp3" else "video/mp4"
-            val actualFile = File(tempDownloadDir, "${tempFilePrefix}.${ext}")
+            val baseExt = if (isAudioOnly) "mp3" else "mp4"
+            val actualFile = File(tempDownloadDir, "${tempFilePrefix}.${baseExt}")
             
-            var downloadedBytes = 0L
-            val startTime = System.currentTimeMillis()
-            var lastUpdateTime = startTime
+            val request = com.yausername.youtubedl_android.YoutubeDLRequest(inputUrl)
+            // Use ext wildcard so yt-dlp doesn't fail on format conflicts
+            request.addOption("-o", File(tempDownloadDir, "${tempFilePrefix}.%(ext)s").absolutePath)
             
-            connection.inputStream.use { input ->
-                FileOutputStream(actualFile).use { output ->
-                    val buffer = ByteArray(8 * 1024)
-                    var bytesRead: Int
-                    
-                    while (input.read(buffer).also { bytesRead = it } != -1) {
-                        output.write(buffer, 0, bytesRead)
-                        downloadedBytes += bytesRead
-                        
-                        val currentTime = System.currentTimeMillis()
-                        if (currentTime - lastUpdateTime > 500 || downloadedBytes == totalBytes) { // Update frequency
-                            val progressInt = if (totalBytes > 0) ((downloadedBytes * 100) / totalBytes).toInt() else 0
-                            
-                            val timeElapsedSec = (currentTime - startTime) / 1000.0
-                            val speedBps = if (timeElapsedSec > 0) downloadedBytes / timeElapsedSec else 0.0
-                            val speedValue = formatSpeed(speedBps)
-                            val statusText = "Downloading... $progressInt%"
-                            
-                            setProgress(workDataOf(
-                                KEY_PROGRESS to progressInt,
-                                KEY_STATUS_TEXT to statusText,
-                                KEY_SPEED to speedValue
-                            ))
-                            
-                            setForeground(createForegroundInfo(progressInt, "Downloading: $progressInt% ($speedValue)"))
-                            lastUpdateTime = currentTime
-                        }
-                    }
+            if (isAudioOnly) {
+                request.addOption("-f", "bestaudio")
+                request.addOption("--extract-audio")
+                request.addOption("--audio-format", "mp3")
+            } else {
+                val query = when (vQuality) {
+                    "max" -> "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+                    "2160" -> "bestvideo[height<=2160][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+                    "1440" -> "bestvideo[height<=1440][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+                    "1080" -> "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+                    "720" -> "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+                    "480" -> "bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+                    "360" -> "bestvideo[height<=360][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+                    else -> "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
                 }
+                request.addOption("-f", query)
+                request.addOption("--merge-output-format", "mp4")
             }
             
-            val downloadedSize = actualFile.length()
-            if (downloadedSize == 0L) {
+            var lastUpdateTime = System.currentTimeMillis()
+            
+            com.yausername.youtubedl_android.YoutubeDL.getInstance().execute(request, tempFilePrefix) { progress: Float, etaInSeconds: Long, line: String ->
+                val currentTime = System.currentTimeMillis()
+                if ((currentTime - lastUpdateTime > 500) || (progress > 99.0f)) {
+                    val progressInt = progress.toInt()
+                    val speedStr = if (line.contains("at ")) line.substringAfter("at ").substringBefore(" ETA") else "calculating..."
+                    val statusText = "Downloading... $progressInt%"
+                    
+                    setProgressAsync(workDataOf(
+                        KEY_PROGRESS to progressInt,
+                        KEY_STATUS_TEXT to statusText,
+                        KEY_SPEED to speedStr
+                    ))
+                    lastUpdateTime = currentTime
+                }
+                kotlin.Unit
+            }
+            
+            // Find the actual generated file
+            val downloadedFile = tempDownloadDir.listFiles { _, name -> name.startsWith(tempFilePrefix) }?.firstOrNull()
+            
+            if (downloadedFile == null || downloadedFile.length() == 0L) {
                return@withContext Result.failure(workDataOf(KEY_STATUS_TEXT to "Downloaded file is empty!"))
             }
+
+            val downloadedSize = downloadedFile.length()
+            val finalExt = downloadedFile.extension
+            val mimeType = if (isAudioOnly) "audio/${finalExt}" else "video/${finalExt}"
             
             // 3. Move file to final location choice
-            var finalPath = actualFile.absolutePath
+            var finalPath = downloadedFile.absolutePath
             if (destUriStr.isNotEmpty()) {
                 val destUri = android.net.Uri.parse(destUriStr)
                 if (destUri.scheme == "content") {
                     val documentDir = DocumentFile.fromTreeUri(context, destUri)
                     if (documentDir != null && documentDir.exists()) {
-                        val cleanFilename = "Continental_Media_${System.currentTimeMillis()}.${ext}"
+                        val cleanFilename = "Continental_Media_${System.currentTimeMillis()}.${finalExt}"
                         val newFile = documentDir.createFile(mimeType, cleanFilename)
                         if (newFile != null) {
                             context.contentResolver.openOutputStream(newFile.uri)?.use { outputStream ->
-                                actualFile.inputStream().use { fileInput ->
+                                downloadedFile.inputStream().use { fileInput ->
                                     fileInput.copyTo(outputStream)
                                 }
                             }
                             finalPath = newFile.uri.toString()
-                            actualFile.delete()
+                            downloadedFile.delete()
                         }
                     }
                 } else {
@@ -215,9 +135,9 @@ class DownloadWorker(
                     if (!destDir.exists()) {
                         destDir.mkdirs()
                     }
-                    val destFile = File(destDir, "Continental_Media_${System.currentTimeMillis()}.${ext}")
-                    actualFile.copyTo(destFile, overwrite = true)
-                    actualFile.delete()
+                    val destFile = File(destDir, "Continental_Media_${System.currentTimeMillis()}.${finalExt}")
+                    downloadedFile.copyTo(destFile, overwrite = true)
+                    downloadedFile.delete()
                     finalPath = destFile.absolutePath
                 }
             } else {
@@ -225,9 +145,9 @@ class DownloadWorker(
                 if (!downloadsPublicDir.exists()) {
                     downloadsPublicDir.mkdirs()
                 }
-                val destFile = File(downloadsPublicDir, "Continental_Media_${System.currentTimeMillis()}.${ext}")
-                actualFile.copyTo(destFile, overwrite = true)
-                actualFile.delete()
+                val destFile = File(downloadsPublicDir, "Continental_Media_${System.currentTimeMillis()}.${finalExt}")
+                downloadedFile.copyTo(destFile, overwrite = true)
+                downloadedFile.delete()
                 finalPath = destFile.absolutePath
             }
             

@@ -10,6 +10,9 @@ import com.example.util.MediaCacheManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import com.yausername.youtubedl_android.YoutubeDL
+import com.yausername.ffmpeg.FFmpeg
+import android.util.Log
 
 class MyApplication : Application(), ImageLoaderFactory {
 
@@ -18,6 +21,15 @@ class MyApplication : Application(), ImageLoaderFactory {
         
         // Initialize pre-warming service asynchronously to keep UI thread responsive
         CoroutineScope(Dispatchers.IO).launch {
+            try {
+                YoutubeDL.getInstance().init(this@MyApplication)
+                FFmpeg.getInstance().init(this@MyApplication)
+                // Download latest yt-dlp binary if needed (optional but recommended)
+                // YoutubeDL.getInstance().updateYoutubeDL(this@MyApplication, YoutubeDL.UpdateChannel.STABLE)
+            } catch (e: Exception) {
+                Log.e("MyApplication", "failed to init youtubedl", e)
+            }
+            
             // Pre-warm the cache and playback surface requirements
             MediaCacheManager.getInstance(this@MyApplication)
         }

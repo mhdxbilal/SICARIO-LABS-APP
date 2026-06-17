@@ -64,6 +64,11 @@ android {
     compose = true
     buildConfig = true
   }
+  packagingOptions {
+    jniLibs {
+      useLegacyPackaging = true
+    }
+  }
   testOptions { unitTests { isIncludeAndroidResources = true } }
 }
 
@@ -119,6 +124,9 @@ dependencies {
   implementation(libs.okhttp)
   // implementation(libs.play.services.location)
   implementation(libs.retrofit)
+  // yt-dlp wrapper for Android
+  implementation("io.github.junkfood02.youtubedl-android:library:0.18.1")
+  implementation("io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1")
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)
