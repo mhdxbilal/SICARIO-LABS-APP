@@ -159,7 +159,7 @@ object PlayerSettings {
     }
 
     // Dashboard display and sorting getters/setters
-    fun getViewMode(context: Context): String = getPrefs(context).getString(KEY_VIEW_MODE, "list") ?: "list"
+    fun getViewMode(context: Context): String = getPrefs(context).getString(KEY_VIEW_MODE, "grid") ?: "grid"
     fun setViewMode(context: Context, value: String) = getPrefs(context).edit().putString(KEY_VIEW_MODE, value).apply()
 
     fun getShowOnlyFavorites(context: Context): Boolean = getPrefs(context).getBoolean(KEY_SHOW_ONLY_FAVORITES, false)

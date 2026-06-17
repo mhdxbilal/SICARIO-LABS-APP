@@ -352,269 +352,118 @@ fun MediaDashboardScreen(
 
     Scaffold(
         topBar = {
-            Column(
-                modifier = Modifier
-                    .background(MaterialTheme.colorScheme.background)
-                    .statusBarsPadding()
-                    .drawBehind {
-                        // Sleek tech accent divider
-                        drawLine(
-                            color = BlueAccent.copy(alpha = 0.2f),
-                            start = androidx.compose.ui.geometry.Offset(0f, size.height),
-                            end = androidx.compose.ui.geometry.Offset(size.width, size.height),
-                            strokeWidth = 1.dp.toPx()
-                        )
-                    }
-            ) {
+            if (currentSection == "Video" || currentSection == "Audio") {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.End
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                            shape = RoundedCornerShape(4.dp),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
-                        ) {
-                            Text(
-                                "SYS.ACT",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                    fontSize = 9.sp,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.Bold
-                                ),
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                        Text(
-                            text = when(currentSection) {
-                                "Video" -> "VIDEOS"
-                                "Audio" -> "MUSIC"
-                                "Browse" -> "FILES"
-                                "Playlists" -> "PLAYLISTS"
-                                else -> "SETTINGS"
-                            },
-                            style = MaterialTheme.typography.titleLarge,
-                            color = Color.White,
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 1.5.sp
-                        )
-                    }
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box {
                         IconButton(
-                            onClick = {
-                                isSearchExpanded = !isSearchExpanded
-                                if (!isSearchExpanded) {
-                                    viewModel.updateSearchQuery("")
-                                }
-                            },
-                            colors = IconButtonDefaults.iconButtonColors(
-                                containerColor = if (isSearchExpanded) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer
-                            )
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Search,
-                                contentDescription = "Toggle search panel",
-                                tint = if (isSearchExpanded) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSecondaryContainer
-                            )
-                        }
-
-                        Box {
-                            IconButton(
-                                onClick = { isSortMenuExpanded = true },
-                                colors = IconButtonDefaults.iconButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.secondaryContainer
-                                )
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Sort,
-                                    contentDescription = "Sort videos",
-                                    tint = MaterialTheme.colorScheme.onSecondaryContainer
-                                )
-                            }
-                            DropdownMenu(
-                                expanded = isSortMenuExpanded,
-                                onDismissRequest = { isSortMenuExpanded = false },
-                                modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant)
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("Name (A-Z)") },
-                                    leadingIcon = {
-                                        if (sortFieldSetting == "name" && sortOrderSetting == "asc") {
-                                            Icon(Icons.Default.Check, contentDescription = "Active", tint = MaterialTheme.colorScheme.primary)
-                                        }
-                                    },
-                                    modifier = Modifier.testTag("sort_name_asc"),
-                                    onClick = {
-                                        sortFieldSetting = "name"
-                                        sortOrderSetting = "asc"
-                                        isSortMenuExpanded = false
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Name (Z-A)") },
-                                    leadingIcon = {
-                                        if (sortFieldSetting == "name" && sortOrderSetting == "desc") {
-                                            Icon(Icons.Default.Check, contentDescription = "Active", tint = MaterialTheme.colorScheme.primary)
-                                        }
-                                    },
-                                    modifier = Modifier.testTag("sort_name_desc"),
-                                    onClick = {
-                                        sortFieldSetting = "name"
-                                        sortOrderSetting = "desc"
-                                        isSortMenuExpanded = false
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Date Added (Newest)") },
-                                    leadingIcon = {
-                                        if (sortFieldSetting == "added_date" && sortOrderSetting == "desc") {
-                                            Icon(Icons.Default.Check, contentDescription = "Active", tint = MaterialTheme.colorScheme.primary)
-                                        }
-                                    },
-                                    modifier = Modifier.testTag("sort_date_desc"),
-                                    onClick = {
-                                        sortFieldSetting = "added_date"
-                                        sortOrderSetting = "desc"
-                                        isSortMenuExpanded = false
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Date Added (Oldest)") },
-                                    leadingIcon = {
-                                        if (sortFieldSetting == "added_date" && sortOrderSetting == "asc") {
-                                            Icon(Icons.Default.Check, contentDescription = "Active", tint = MaterialTheme.colorScheme.primary)
-                                        }
-                                    },
-                                    modifier = Modifier.testTag("sort_date_asc"),
-                                    onClick = {
-                                        sortFieldSetting = "added_date"
-                                        sortOrderSetting = "asc"
-                                        isSortMenuExpanded = false
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("File Size (Largest)") },
-                                    leadingIcon = {
-                                        if (sortFieldSetting == "size" && sortOrderSetting == "desc") {
-                                            Icon(Icons.Default.Check, contentDescription = "Active", tint = MaterialTheme.colorScheme.primary)
-                                        }
-                                    },
-                                    modifier = Modifier.testTag("sort_size_desc"),
-                                    onClick = {
-                                        sortFieldSetting = "size"
-                                        sortOrderSetting = "desc"
-                                        isSortMenuExpanded = false
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("File Size (Smallest)") },
-                                    leadingIcon = {
-                                        if (sortFieldSetting == "size" && sortOrderSetting == "asc") {
-                                            Icon(Icons.Default.Check, contentDescription = "Active", tint = MaterialTheme.colorScheme.primary)
-                                        }
-                                    },
-                                    modifier = Modifier.testTag("sort_size_asc"),
-                                    onClick = {
-                                        sortFieldSetting = "size"
-                                        sortOrderSetting = "asc"
-                                        isSortMenuExpanded = false
-                                    }
-                                )
-                            }
-                        }
-
-                        IconButton(
-                            onClick = { showDashboardSettings = true },
+                            onClick = { isSortMenuExpanded = true },
                             colors = IconButtonDefaults.iconButtonColors(
                                 containerColor = MaterialTheme.colorScheme.secondaryContainer
                             )
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = "Configure dashboard settings",
+                                imageVector = Icons.Default.Sort,
+                                contentDescription = "Sort videos",
                                 tint = MaterialTheme.colorScheme.onSecondaryContainer
                             )
                         }
-                    }
-                }
-
-                if (showDashboardSettings) {
-                    PlayerSettingsDialog(
-                        displayViewMode = displayViewMode,
-                        onViewModeChanged = { displayViewMode = it },
-                        showOnlyFavoritesSetting = showOnlyFavoritesSetting,
-                        onShowOnlyFavoritesChanged = { showOnlyFavoritesSetting = it },
-                        playbackActionSetting = playbackActionSetting,
-                        onPlaybackActionChanged = { playbackActionSetting = it },
-                        sortFieldSetting = sortFieldSetting,
-                        sortOrderSetting = sortOrderSetting,
-                        onSortChanged = { field, order ->
-                            sortFieldSetting = field
-                            sortOrderSetting = order
-                        },
-                        groupBySetting = groupBySetting,
-                        onGroupByChanged = { groupBySetting = it },
-                        onFolderPickerLaunch = { folderPickerLauncher.launch(null) },
-                        onDocumentPickerLaunch = { documentPickerLauncher.launch(arrayOf("video/*")) },
-                        onDeepScan = {
-                            if (hasPermission) {
-                                viewModel.scanDeepLocalVideos()
-                            } else {
-                                permissionLauncher.launch(storagePermission)
-                            }
-                        },
-                        onAutomatedScan = {
-                            if (hasPermission) {
-                                viewModel.scanLocalVideos()
-                            } else {
-                                permissionLauncher.launch(storagePermission)
-                            }
-                        },
-                        onDismiss = { showDashboardSettings = false }
-                    )
-                }
-
-                AnimatedVisibility(
-                    visible = isSearchExpanded,
-                    enter = expandVertically() + fadeIn(),
-                    exit = shrinkVertically() + fadeOut()
-                ) {
-                    TextField(
-                        value = searchQuery,
-                        onValueChange = { viewModel.updateSearchQuery(it) },
-                        placeholder = { Text("Search your media collection...", color = Color.Gray) },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
-                        trailingIcon = {
-                            if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { viewModel.updateSearchQuery("") }) {
-                                    Icon(Icons.Default.Clear, contentDescription = "Clear search")
+                        DropdownMenu(
+                            expanded = isSortMenuExpanded,
+                            onDismissRequest = { isSortMenuExpanded = false },
+                            modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Name (A-Z)") },
+                                leadingIcon = {
+                                    if (sortFieldSetting == "name" && sortOrderSetting == "asc") {
+                                        Icon(Icons.Default.Check, contentDescription = "Active", tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                },
+                                modifier = Modifier.testTag("sort_name_asc"),
+                                onClick = {
+                                    sortFieldSetting = "name"
+                                    sortOrderSetting = "asc"
+                                    isSortMenuExpanded = false
                                 }
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 8.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .testTag("video_search_input"),
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color(0xFF141416),
-                            unfocusedContainerColor = Color(0xFF141416),
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent,
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        ),
-                        singleLine = true
-                    )
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Name (Z-A)") },
+                                leadingIcon = {
+                                    if (sortFieldSetting == "name" && sortOrderSetting == "desc") {
+                                        Icon(Icons.Default.Check, contentDescription = "Active", tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                },
+                                modifier = Modifier.testTag("sort_name_desc"),
+                                onClick = {
+                                    sortFieldSetting = "name"
+                                    sortOrderSetting = "desc"
+                                    isSortMenuExpanded = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Date Added (Newest)") },
+                                leadingIcon = {
+                                    if (sortFieldSetting == "added_date" && sortOrderSetting == "desc") {
+                                        Icon(Icons.Default.Check, contentDescription = "Active", tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                },
+                                modifier = Modifier.testTag("sort_date_desc"),
+                                onClick = {
+                                    sortFieldSetting = "added_date"
+                                    sortOrderSetting = "desc"
+                                    isSortMenuExpanded = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Date Added (Oldest)") },
+                                leadingIcon = {
+                                    if (sortFieldSetting == "added_date" && sortOrderSetting == "asc") {
+                                        Icon(Icons.Default.Check, contentDescription = "Active", tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                },
+                                modifier = Modifier.testTag("sort_date_asc"),
+                                onClick = {
+                                    sortFieldSetting = "added_date"
+                                    sortOrderSetting = "asc"
+                                    isSortMenuExpanded = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("File Size (Largest)") },
+                                leadingIcon = {
+                                    if (sortFieldSetting == "size" && sortOrderSetting == "desc") {
+                                        Icon(Icons.Default.Check, contentDescription = "Active", tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                },
+                                modifier = Modifier.testTag("sort_size_desc"),
+                                onClick = {
+                                    sortFieldSetting = "size"
+                                    sortOrderSetting = "desc"
+                                    isSortMenuExpanded = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("File Size (Smallest)") },
+                                leadingIcon = {
+                                    if (sortFieldSetting == "size" && sortOrderSetting == "asc") {
+                                        Icon(Icons.Default.Check, contentDescription = "Active", tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                },
+                                modifier = Modifier.testTag("sort_size_asc"),
+                                onClick = {
+                                    sortFieldSetting = "size"
+                                    sortOrderSetting = "asc"
+                                    isSortMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
                 }
             }
         },
@@ -853,28 +702,9 @@ fun MediaDashboardScreen(
                     )
 
                     NavigationBarItem(
-                        selected = (currentSection == "Browse"),
-                        onClick = { currentSection = "Browse" },
-                        label = { Text("Browse", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Default.Folder,
-                                contentDescription = "Browse Tab"
-                            )
-                        },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.primary,
-                            selectedTextColor = MaterialTheme.colorScheme.primary,
-                            indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    )
-
-                    NavigationBarItem(
                         selected = (currentSection == "Playlists"),
                         onClick = { currentSection = "Playlists" },
-                        label = { Text("Playlists", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
+                        label = { Text("RDX", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
                         icon = {
                             Icon(
                                 imageVector = Icons.Default.QueueMusic,
@@ -893,11 +723,11 @@ fun MediaDashboardScreen(
                     NavigationBarItem(
                         selected = (currentSection == "More"),
                         onClick = { currentSection = "More" },
-                        label = { Text("More", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
+                        label = { Text("Settings", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
                         icon = {
                             Icon(
-                                imageVector = Icons.Default.MoreHoriz,
-                                contentDescription = "More Tab"
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Settings Tab"
                             )
                         },
                         colors = NavigationBarItemDefaults.colors(
@@ -1462,19 +1292,18 @@ fun MediaDashboardScreen(
                         var setAsPreferredLocation by remember { mutableStateOf(false) }
                         var isCustomLocation by remember { mutableStateOf(downloadLocationUri.isNotEmpty()) }
                         var expandedQuality by remember { mutableStateOf(false) }
-                        var selectedQuality by remember { mutableStateOf("1080p") }
+                        var selectedQuality by remember { mutableStateOf("1080p Full HD") }
 
                         val qualityMap = remember {
                             mapOf(
-                                "Best Available" to "best",
-                                "8K (4320p)" to "bestvideo[height<=4320]+bestaudio/best",
-                                "4K (2160p)" to "bestvideo[height<=2160]+bestaudio/best",
-                                "2K (1440p)" to "bestvideo[height<=1440]+bestaudio/best",
-                                "1080p 60fps" to "bestvideo[height<=1080][fps>=60]+bestaudio/best",
-                                "1080p" to "bestvideo[height<=1080]+bestaudio/best",
-                                "720p 60fps" to "bestvideo[height<=720][fps>=60]+bestaudio/best",
-                                "720p" to "bestvideo[height<=720]+bestaudio/best",
-                                "Audio Only" to "bestaudio"
+                                "Best/Max Available" to "max",
+                                "8K / 4K (2160p)" to "2160",
+                                "2K (1440p)" to "1440",
+                                "1080p Full HD" to "1080",
+                                "720p HD" to "720",
+                                "480p SD" to "480",
+                                "360p Low" to "360",
+                                "Audio Only" to "audio"
                             )
                         }
 
@@ -1492,7 +1321,7 @@ fun MediaDashboardScreen(
                         }
 
                         val workInfos by WorkManager.getInstance(context)
-                            .getWorkInfosByTagFlow("ytdlp_download")
+                            .getWorkInfosByTagFlow("native_download")
                             .collectAsState(initial = emptyList())
 
                         val activeWorkInfo = remember(workInfos) {
@@ -1897,7 +1726,7 @@ fun MediaDashboardScreen(
                                                                 DownloadWorker.KEY_FORMAT to formatArg
                                                             )
                                                         )
-                                                        .addTag("ytdlp_download")
+                                                        .addTag("native_download")
                                                         .build()
                                                     WorkManager.getInstance(context).enqueue(request)
                                                 }
@@ -1948,301 +1777,47 @@ fun MediaDashboardScreen(
                     }
 
                     "More" -> {
-                        var autoRescanVal by remember { mutableStateOf(PlayerSettings.getAutoRescan(context)) }
-                        var seamlessTransitionsVal by remember { mutableStateOf(PlayerSettings.getSeamlessTransitions(context)) }
-                        var isEqEnabled by remember { mutableStateOf(PlayerSettings.getEqualizerEnabled(context)) }
-                        var eqValuesMore by remember {
-                            mutableStateOf(
-                                listOf(
-                                    PlayerSettings.getEqualizerBand(context, 0),
-                                    PlayerSettings.getEqualizerBand(context, 1),
-                                    PlayerSettings.getEqualizerBand(context, 2),
-                                    PlayerSettings.getEqualizerBand(context, 3),
-                                    PlayerSettings.getEqualizerBand(context, 4)
-                                )
-                            )
-                        }
-
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .verticalScroll(rememberScrollState())
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            // Card 1: Media Library (Matching user image description)
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF121212))
-                            ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Text(
-                                        text = "Media Library",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = Color(0xFF3B82F6),
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Spacer(modifier = Modifier.height(12.dp))
-
-                                    // Media library folders
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { folderPickerLauncher.launch(null) }
-                                            .padding(vertical = 12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(Icons.Default.FolderOpen, contentDescription = null, tint = Color(0xFF9CA3AF))
-                                        Spacer(modifier = Modifier.width(16.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text("Media library folders", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                                            Text("Select directories to include in the media library", color = Color(0xFF9CA3AF), style = MaterialTheme.typography.bodySmall)
-                                        }
-                                        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFF9CA3AF))
-                                    }
-
-                                    HorizontalDivider(color = Color(0xFF262626))
-
-                                    // Auto rescan
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(Icons.Default.YoutubeSearchedFor, contentDescription = null, tint = Color(0xFF9CA3AF))
-                                        Spacer(modifier = Modifier.width(16.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text("Auto rescan", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                                            Text("Automatically scan device for new or deleted media at application startup", color = Color(0xFF9CA3AF), style = MaterialTheme.typography.bodySmall)
-                                        }
-                                        Switch(
-                                            checked = autoRescanVal,
-                                            onCheckedChange = {
-                                                autoRescanVal = it
-                                                PlayerSettings.setAutoRescan(context, it)
-                                            },
-                                            colors = SwitchDefaults.colors(
-                                                checkedThumbColor = Color(0xFF3B82F6),
-                                                checkedTrackColor = Color(0xFF3B82F6).copy(alpha = 0.5f)
-                                            )
-                                        )
-                                    }
+                        PlayerSettingsDialog(
+                            displayViewMode = displayViewMode,
+                            onViewModeChanged = { displayViewMode = it },
+                            showOnlyFavoritesSetting = showOnlyFavoritesSetting,
+                            onShowOnlyFavoritesChanged = { showOnlyFavoritesSetting = it },
+                            playbackActionSetting = playbackActionSetting,
+                            onPlaybackActionChanged = { playbackActionSetting = it },
+                            sortFieldSetting = sortFieldSetting,
+                            sortOrderSetting = sortOrderSetting,
+                            onSortChanged = { field, order ->
+                                sortFieldSetting = field
+                                sortOrderSetting = order
+                            },
+                            groupBySetting = groupBySetting,
+                            onGroupByChanged = { groupBySetting = it },
+                            onFolderPickerLaunch = { folderPickerLauncher.launch(null) },
+                            onDocumentPickerLaunch = { documentPickerLauncher.launch(arrayOf("video/*")) },
+                            onDeepScan = {
+                                if (hasPermission) {
+                                    viewModel.scanDeepLocalVideos()
+                                } else {
+                                    permissionLauncher.launch(storagePermission)
                                 }
-                            }
-
-                            // Card 2: Playback Options (Seamless transition)
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF121212))
-                            ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Text(
-                                        text = "Playback settings",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = Color(0xFF9CA3AF),
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Spacer(modifier = Modifier.height(12.dp))
-
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(Icons.Default.Loop, contentDescription = null, tint = Color(0xFF9CA3AF))
-                                        Spacer(modifier = Modifier.width(16.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text("Seamless transitions", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                                            Text("Enable seamless gapless transitions between track playback structures", color = Color(0xFF9CA3AF), style = MaterialTheme.typography.bodySmall)
-                                        }
-                                        Switch(
-                                            checked = seamlessTransitionsVal,
-                                            onCheckedChange = {
-                                                seamlessTransitionsVal = it
-                                                PlayerSettings.setSeamlessTransitions(context, it)
-                                            },
-                                            colors = SwitchDefaults.colors(
-                                                checkedThumbColor = Color(0xFF3B82F6),
-                                                checkedTrackColor = Color(0xFF3B82F6).copy(alpha = 0.5f)
-                                            )
-                                        )
-                                    }
+                            },
+                            onAutomatedScan = {
+                                if (hasPermission) {
+                                    viewModel.scanLocalVideos()
+                                } else {
+                                    permissionLauncher.launch(storagePermission)
                                 }
-                            }
-
-                            // Card 3: Internal Sound Equalizer (Graphic equalizers)
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF121212))
-                            ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column {
-                                            Text("Internal Sound Equalizer", style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.Bold)
-                                            Text("Fine-tune acoustic frequency details", style = MaterialTheme.typography.bodySmall, color = Color(0xFF9CA3AF))
-                                        }
-                                        Switch(
-                                            checked = isEqEnabled,
-                                            onCheckedChange = {
-                                                isEqEnabled = it
-                                                PlayerSettings.setEqualizerEnabled(context, it)
-                                                eqEnabled = it
-                                            },
-                                            colors = SwitchDefaults.colors(
-                                                checkedThumbColor = Color(0xFF3B82F6),
-                                                checkedTrackColor = Color(0xFF3B82F6).copy(alpha = 0.5f)
-                                            )
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.height(16.dp))
-
-                                    Text(
-                                        text = "Acoustic Equalizer Presets",
-                                        fontSize = 14.sp,
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(bottom = 8.dp)
-                                    )
-
-                                    // Horizontally Scrollable Preset Selectors
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .horizontalScroll(rememberScrollState())
-                                            .padding(vertical = 4.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        val presets = listOf(
-                                            "Flat" to listOf(0f, 0f, 0f, 0f, 0f),
-                                            "Bass Boost" to listOf(10f, 7f, 1f, 0f, -3f),
-                                            "Vocal" to listOf(-4f, 1f, 8f, 7f, 2f),
-                                            "Rock" to listOf(6f, 3f, -2f, 3f, 7f),
-                                            "Jazz" to listOf(4f, 2f, -3f, 2f, 5f),
-                                            "Classical" to listOf(4f, 2f, -1f, 3f, 4f)
-                                        )
-                                        presets.forEach { (presetName, presetVals) ->
-                                            val isCurrentPreset = eqValuesMore.map { "%.1f".format(it) } == presetVals.map { "%.1f".format(it) }
-                                            Button(
-                                                onClick = {
-                                                    if (isEqEnabled) {
-                                                        eqValuesMore = presetVals
-                                                        presetVals.forEachIndexed { idx, valDb ->
-                                                            PlayerSettings.setEqualizerBand(context, idx, valDb)
-                                                        }
-                                                    }
-                                                },
-                                                colors = ButtonDefaults.buttonColors(
-                                                    containerColor = if (isCurrentPreset) Color(0xFF3B82F6) else Color(0xFF1A1A1A)
-                                                ),
-                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                                modifier = Modifier.height(32.dp),
-                                                shape = RoundedCornerShape(16.dp)
-                                            ) {
-                                                Text(presetName, fontSize = 12.sp, color = if (isCurrentPreset) Color.Black else Color.White, fontWeight = FontWeight.SemiBold)
-                                            }
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.height(16.dp))
-
-                                    Text(
-                                        text = "5-Band Graphic Equalizer",
-                                        fontSize = 14.sp,
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(bottom = 12.dp)
-                                    )
-
-                                    // Graphic Equalizer row
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .border(1.dp, Color(0xFF262626), RoundedCornerShape(12.dp))
-                                            .background(Color(0xFF000000), RoundedCornerShape(12.dp))
-                                            .padding(vertical = 12.dp, horizontal = 8.dp),
-                                        horizontalArrangement = Arrangement.SpaceEvenly
-                                    ) {
-                                        val frequencies = listOf("60 Hz", "230 Hz", "910 Hz", "4 kHz", "14 kHz")
-                                        frequencies.forEachIndexed { index, bandFreqLabel ->
-                                            VerticalEqualizerSlider(
-                                                value = eqValuesMore[index],
-                                                enabled = isEqEnabled,
-                                                onValueChange = { newVal ->
-                                                    val updated = eqValuesMore.toMutableList()
-                                                    updated[index] = newVal
-                                                    eqValuesMore = updated
-                                                    PlayerSettings.setEqualizerBand(context, index, newVal)
-                                                },
-                                                label = bandFreqLabel
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Card 4: Acoustic Special Enhancements
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF141416))
-                            ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Text("Acoustic Special Enhancements", style = MaterialTheme.typography.bodyLarge, color = Color.White, fontWeight = FontWeight.Bold)
-                                    Spacer(modifier = Modifier.height(16.dp))
-
-                                    Text("Bass Boost Depth: ${String.format("%.0f", baseBoostVal)}%", color = Color(0xFF9CA3AF), style = MaterialTheme.typography.bodySmall)
-                                    Slider(
-                                        value = baseBoostVal,
-                                        onValueChange = { if (isEqEnabled) baseBoostVal = it },
-                                        valueRange = 0f..100f,
-                                        colors = SliderDefaults.colors(
-                                            thumbColor = Color(0xFF3B82F6),
-                                            activeTrackColor = Color(0xFF3B82F6),
-                                            inactiveTrackColor = Color(0xFF262626)
-                                        )
-                                    )
-
-                                    Spacer(modifier = Modifier.height(8.dp))
-
-                                    Text("Virtualizer Depth: ${String.format("%.0f", surroundDepthVal)}%", color = Color(0xFF9CA3AF), style = MaterialTheme.typography.bodySmall)
-                                    Slider(
-                                        value = surroundDepthVal,
-                                        onValueChange = { if (isEqEnabled) surroundDepthVal = it },
-                                        valueRange = 0f..100f,
-                                        colors = SliderDefaults.colors(
-                                            thumbColor = Color(0xFF3B82F6),
-                                            activeTrackColor = Color(0xFF3B82F6),
-                                            inactiveTrackColor = Color(0xFF262626)
-                                        )
-                                    )
-                                }
-                            }
-
-                            // Card 5: Audio Quality Specifications
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF141416))
-                            ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Text("Audio Quality Specifications", style = MaterialTheme.typography.bodyLarge, color = Color.White, fontWeight = FontWeight.Bold)
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    Text("• Hi-Res Lossless: WAV or FLAC containing sample rate >48kHz (up to 192kHz) and bitdepth ≥ 24-bit.", color = Color.LightGray, style = MaterialTheme.typography.bodySmall)
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text("• Lossless: WAV, FLAC, or ALAC containing CD specification 16-bit / 44.1kHz sample structures.", color = Color.LightGray, style = MaterialTheme.typography.bodySmall)
-                                }
-                            }
-                        }
+                            },
+                            isDialog = false,
+                            modifier = Modifier.fillMaxSize(),
+                            onDismiss = { }
+                        )
                     }
                 }
             }
         }
     }
+
 
     if (selectedVideoForInfo != null) {
         VideoDetailSheet(

@@ -44,6 +44,8 @@ fun PlayerSettingsDialog(
     onDocumentPickerLaunch: (() -> Unit)? = null,
     onDeepScan: (() -> Unit)? = null,
     onAutomatedScan: (() -> Unit)? = null,
+    isDialog: Boolean = true,
+    modifier: Modifier = Modifier,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -85,18 +87,28 @@ fun PlayerSettingsDialog(
     // Dropdown Dialog state keys
     var showDelayPickerType by remember { mutableStateOf<String?>(null) } // "fwd", "long", "double", "screenshot", "view_mode", "sort_field", "sort_order", "group_by", "playback_action", "decoder_mode"
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
+    val wrapper = @Composable { content: @Composable () -> Unit ->
+        if (isDialog) {
+            Dialog(
+                onDismissRequest = onDismiss,
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                content()
+            }
+        } else {
+            content()
+        }
+    }
+
+    wrapper {
         Surface(
-            modifier = Modifier
+            modifier = if (isDialog) Modifier
                 .fillMaxWidth(0.95f)
                 .fillMaxHeight(0.85f)
-                .padding(12.dp),
-            shape = RoundedCornerShape(20.dp),
+                .padding(12.dp) else modifier.fillMaxSize(),
+            shape = if (isDialog) RoundedCornerShape(20.dp) else RoundedCornerShape(0.dp),
             color = MaterialTheme.colorScheme.background,
-            border = androidx.compose.foundation.BorderStroke(
+            border = if (isDialog) androidx.compose.foundation.BorderStroke(
                 width = 1.dp,
                 brush = androidx.compose.ui.graphics.Brush.linearGradient(
                     colors = listOf(
@@ -104,7 +116,7 @@ fun PlayerSettingsDialog(
                         MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f)
                     )
                 )
-            )
+            ) else null
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 // Top Header Row - Scrollable Minimalist Tabs, zero distraction
